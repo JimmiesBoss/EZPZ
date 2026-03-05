@@ -38,6 +38,8 @@ export default function ActionDetailPage() {
   const { id } = useParams();
   const [item, setItem] = useState<ActionDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [answer, setAnswer] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetch(`/api/actions/${id}`)
@@ -46,11 +48,31 @@ export default function ActionDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  async function handleClarify() {
+    if (!answer.trim() || sending) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/actions/${id}/clarify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setItem(updated);
+        setAnswer("");
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
   if (loading) return <p className="text-gray-400 text-sm p-4">Loading...</p>;
   if (!item) return <p className="text-red-500 text-sm p-4">Not found</p>;
 
   const fields = JSON.parse(item.extractedFields || "{}");
   const artifacts = JSON.parse(item.executionArtifacts || "{}");
+  const missing: string[] = JSON.parse(item.missingFields || "[]");
 
   return (
     <div className="max-w-lg mx-auto">
@@ -112,6 +134,7 @@ export default function ActionDetailPage() {
           </section>
         )}
 
+        {/* Clarification chat */}
         {item.clarificationMessages.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-gray-500 mb-1">Clarification</h2>
@@ -130,6 +153,40 @@ export default function ActionDetailPage() {
               ))}
             </div>
           </section>
+        )}
+
+        {/* Clarification input — shown when there are still missing fields */}
+        {item.status === "NEEDS_INFO" && missing.length > 0 && (
+          <section className="flex gap-2">
+            <input
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleClarify()}
+              placeholder="Type your answer..."
+              className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              disabled={sending}
+            />
+            <button
+              onClick={handleClarify}
+              disabled={sending || !answer.trim()}
+              className="bg-black text-white rounded-full px-4 py-2 text-sm font-medium disabled:opacity-40 active:scale-95 transition-transform"
+            >
+              {sending ? "..." : "Send"}
+            </button>
+          </section>
+        )}
+
+        {item.status === "READY" && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+            All fields resolved. Ready for execution.
+          </div>
+        )}
+
+        {item.status === "DONE" && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800">
+            Completed.
+          </div>
         )}
       </div>
     </div>

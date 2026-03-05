@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dispatchToElvis } from "@/lib/elvis";
 
 export async function GET(
   _req: NextRequest,
@@ -47,6 +48,13 @@ export async function PATCH(
     where: { id: params.id },
     data,
   });
+
+  // Auto-dispatch to Elvis when status becomes READY
+  if (status === "READY") {
+    dispatchToElvis(params.id).catch((err) =>
+      console.error("Elvis dispatch failed:", err)
+    );
+  }
 
   return NextResponse.json(item);
 }
