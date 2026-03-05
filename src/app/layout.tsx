@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SessionProvider from "@/components/SessionProvider";
+import ServiceWorkerRegistrar from "@/components/ServiceWorker";
 
 export const metadata: Metadata = {
   title: "EZPZ",
@@ -26,6 +27,7 @@ export default function RootLayout({
       <body className="bg-white text-gray-900 antialiased">
         <SessionProvider>
           {children}
+          <ServiceWorkerRegistrar />
         </SessionProvider>
       </body>
     </html>

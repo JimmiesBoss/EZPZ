@@ -11,6 +11,8 @@ interface ParseResult {
   actions: ParsedAction[];
 }
 
+const VALID_ACTION_TYPES = ["TASK", "MEETING", "EMAIL"];
+
 const SYSTEM_PROMPT = `You are an intent parser for a personal assistant app. Given raw text from a user, extract one or more action items.
 
 For each action item, determine:
@@ -75,7 +77,26 @@ export async function parseIntake(rawText: string): Promise<ParseResult> {
 
   // Parse JSON from response (handle potential markdown code blocks)
   const jsonStr = content.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-  const parsed: ParseResult = JSON.parse(jsonStr);
+
+  let parsed: ParseResult;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    throw new Error(`Failed to parse Claude response as JSON: ${jsonStr.slice(0, 200)}`);
+  }
+
+  // Validate the structure
+  if (!parsed.actions || !Array.isArray(parsed.actions) || parsed.actions.length === 0) {
+    throw new Error("Claude returned no actions");
+  }
+
+  // Sanitize and validate each action
+  parsed.actions = parsed.actions.map((action) => ({
+    actionType: VALID_ACTION_TYPES.includes(action.actionType) ? action.actionType : "TASK",
+    extractedFields: action.extractedFields ?? {},
+    missingFields: Array.isArray(action.missingFields) ? action.missingFields : [],
+    inferredFields: action.inferredFields ?? {},
+  }));
 
   return parsed;
 }

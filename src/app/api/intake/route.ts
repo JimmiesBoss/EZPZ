@@ -6,6 +6,7 @@ import { saveAudioFile } from "@/lib/storage";
 import { transcribeAudio } from "@/lib/whisper";
 import { parseIntake } from "@/lib/parser";
 import { dispatchToElvis } from "@/lib/elvis";
+import { auditLog, MAX_TEXT_LENGTH, MAX_AUDIO_SIZE } from "@/lib/utils";
 
 async function createActionItems(intakeId: string, rawText: string) {
   try {
@@ -25,7 +26,11 @@ async function createActionItems(intakeId: string, rawText: string) {
         },
       });
 
-      // If fields are missing, create clarification messages
+      await auditLog("ACTION_CREATED", {
+        actionItemId: item.id,
+        metadata: { actionType: action.actionType, status: item.status },
+      });
+
       if (!hasAllRequired) {
         for (const field of action.missingFields) {
           await prisma.clarificationMessage.create({
@@ -38,7 +43,6 @@ async function createActionItems(intakeId: string, rawText: string) {
         }
       }
 
-      // Auto-dispatch to Elvis if all fields present
       if (hasAllRequired) {
         dispatchToElvis(item.id).catch((err) =>
           console.error("Elvis dispatch failed:", err)
@@ -51,7 +55,6 @@ async function createActionItems(intakeId: string, rawText: string) {
     return items;
   } catch (err) {
     console.error("Parsing failed, creating fallback action item:", err);
-    // Fallback: create a basic task if parsing fails
     const item = await prisma.actionItem.create({
       data: {
         intakeId,
@@ -61,6 +64,12 @@ async function createActionItems(intakeId: string, rawText: string) {
         missingFields: JSON.stringify(["details"]),
       },
     });
+
+    await auditLog("ACTION_CREATED", {
+      actionItemId: item.id,
+      metadata: { fallback: true, parseError: String(err) },
+    });
+
     return [item];
   }
 }
@@ -82,13 +91,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
+    if (typeof rawText !== "string" || rawText.length > MAX_TEXT_LENGTH) {
+      return NextResponse.json(
+        { error: `Text too long (max ${MAX_TEXT_LENGTH} chars)` },
+        { status: 400 }
+      );
+    }
+
     const intake = await prisma.intake.create({
       data: {
-        sourceType,
+        sourceType: "TEXT",
         rawText,
         submitterId: session.user.id,
         targetOwnerId: session.user.id,
       },
+    });
+
+    await auditLog("INTAKE_CREATED", {
+      actorId: session.user.id,
+      metadata: { intakeId: intake.id, sourceType: "TEXT" },
     });
 
     const actionItems = await createActionItems(intake.id, rawText);
@@ -104,6 +125,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No audio file" }, { status: 400 });
     }
 
+    if (audioFile.size > MAX_AUDIO_SIZE) {
+      return NextResponse.json(
+        { error: "Audio file too large (max 25MB)" },
+        { status: 400 }
+      );
+    }
+
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
     const ext = audioFile.type.includes("webm") ? "webm" : "mp4";
     const audioUrl = await saveAudioFile(audioBuffer, ext);
@@ -114,7 +142,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error("Transcription failed:", err);
       return NextResponse.json(
-        { error: "Transcription failed" },
+        { error: "Transcription failed. Please try again." },
         { status: 502 }
       );
     }
@@ -128,6 +156,11 @@ export async function POST(req: NextRequest) {
         submitterId: session.user.id,
         targetOwnerId: session.user.id,
       },
+    });
+
+    await auditLog("INTAKE_CREATED", {
+      actorId: session.user.id,
+      metadata: { intakeId: intake.id, sourceType: "VOICE" },
     });
 
     const actionItems = await createActionItems(intake.id, transcript);

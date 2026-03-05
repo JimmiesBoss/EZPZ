@@ -78,6 +78,9 @@ model Intake {
   submitter   User         @relation("SubmittedIntakes", fields: [submitterId], references: [id])
   targetOwner User         @relation("OwnedIntakes", fields: [targetOwnerId], references: [id])
   actionItems ActionItem[]
+
+  @@index([targetOwnerId])
+  @@index([submitterId])
 }
 
 model ActionItem {
@@ -95,6 +98,9 @@ model ActionItem {
   intake                Intake                 @relation(fields: [intakeId], references: [id])
   clarificationMessages ClarificationMessage[]
   auditLogs             AuditLog[]
+
+  @@index([intakeId])
+  @@index([status])
 }
 
 model ClarificationMessage {

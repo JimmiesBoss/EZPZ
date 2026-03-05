@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { auditLog } from "./utils";
 
 interface ElvisPayload {
   action_id: string;
@@ -63,6 +64,11 @@ export async function dispatchToElvis(actionItemId: string) {
   await prisma.actionItem.update({
     where: { id: actionItemId },
     data: { status: "IN_PROGRESS" },
+  });
+
+  await auditLog("ELVIS_DISPATCHED", {
+    actionItemId,
+    metadata: { actionType: item.actionType },
   });
 
   const res = await fetch(webhookUrl, {
