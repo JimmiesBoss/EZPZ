@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe area for bottom nav on notched devices */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

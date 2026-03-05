@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  role      String   @default("SUBMITTER") // OWNER | SUBMITTER | EXECUTOR
+  googleId  String?  @unique
+  createdAt DateTime @default(now())
+
+  // NextAuth fields
+  accounts Account[]
+  sessions Session[]
+
+  // App relations
+  submittedIntakes       Intake[]               @relation("SubmittedIntakes")
+  ownedIntakes           Intake[]               @relation("OwnedIntakes")
+  clarificationMessages  ClarificationMessage[]
+  auditLogs              AuditLog[]
+}
+
+// NextAuth models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// App models
+model Intake {
+  id            String   @id @default(cuid())
+  sourceType    String   // VOICE | TEXT
+  rawText       String?
+  audioUrl      String?
+  transcript    String?
+  submitterId   String
+  targetOwnerId String
+  createdAt     DateTime @default(now())
+
+  submitter   User         @relation("SubmittedIntakes", fields: [submitterId], references: [id])
+  targetOwner User         @relation("OwnedIntakes", fields: [targetOwnerId], references: [id])
+  actionItems ActionItem[]
+}
+
+model ActionItem {
+  id                 String   @id @default(cuid())
+  intakeId           String
+  actionType         String   // TASK | MEETING | EMAIL
+  status             String   @default("NEEDS_INFO") // NEEDS_INFO | READY | IN_PROGRESS | DONE | ARCHIVED
+  extractedFields    String   @default("{}") // JSON stored as text (SQLite)
+  missingFields      String   @default("[]") // JSON stored as text (SQLite)
+  inferredFields     String   @default("{}") // JSON stored as text (SQLite)
+  executionArtifacts String   @default("{}") // JSON stored as text (SQLite)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  intake                Intake                 @relation(fields: [intakeId], references: [id])
+  clarificationMessages ClarificationMessage[]
+  auditLogs             AuditLog[]
+}
+
+model ClarificationMessage {
+  id           String   @id @default(cuid())
+  actionItemId String
+  direction    String   // SYSTEM | USER
+  content      String
+  answeredById String?
+  createdAt    DateTime @default(now())
+
+  actionItem ActionItem @relation(fields: [actionItemId], references: [id])
+  answeredBy User?      @relation(fields: [answeredById], references: [id])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actionItemId String?
+  event        String
+  actorId      String?
+  metadata     String   @default("{}") // JSON stored as text (SQLite)
+  createdAt    DateTime @default(now())
+
+  actionItem ActionItem? @relation(fields: [actionItemId], references: [id])
+  actor      User?       @relation(fields: [actorId], references: [id])
+}
