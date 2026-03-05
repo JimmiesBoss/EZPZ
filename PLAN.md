@@ -3,26 +3,35 @@
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│         Next.js App (Vercel)        │
-│  ┌───────────┐  ┌────────────────┐  │
-│  │ Mobile PWA │  │  API Routes    │  │
-│  │ (React)    │  │                │  │
-│  │            │  │ POST /intake   │  │
-│  │ - Capture  │  │ POST /clarify  │  │
-│  │ - Queue    │  │ GET  /actions  │  │
-│  │ - Chat     │  │ POST /callback │  │
-│  │ - Detail   │  │ GET  /events   │  │
-│  └───────────┘  └────────────────┘  │
-└──────────┬──────────────┬───────────┘
-           │              │
-    ┌──────▼──────┐ ┌─────▼──────────┐
-    │  PostgreSQL │ │ External APIs   │
-    │  (Supabase) │ │                 │
-    └─────────────┘ │ - Claude (parse)│
-                    │ - Whisper (STT) │
-                    │ - Elvis (webhook│
-                    └─────────────────┘
+Your VPS (same machine as Elvis)
+┌─────────────────────────────────────────────┐
+│                                             │
+│  ┌──────────────────────────────────────┐   │
+│  │      EZPZ (Next.js on :3001)        │   │
+│  │  ┌───────────┐  ┌────────────────┐   │   │
+│  │  │ Mobile PWA │  │  API Routes    │   │   │
+│  │  │ (React)    │  │                │   │   │
+│  │  │            │  │ POST /intake   │   │   │
+│  │  │ - Capture  │  │ POST /clarify  │   │   │
+│  │  │ - Queue    │  │ GET  /actions  │   │   │
+│  │  │ - Chat     │  │ POST /callback │   │   │
+│  │  │ - Detail   │  │ GET  /events   │   │   │
+│  │  └───────────┘  └────────────────┘   │   │
+│  └──────────┬──────────────┬────────────┘   │
+│             │              │                │
+│  ┌──────────▼──┐    ┌──────▼──────────┐     │
+│  │   SQLite    │    │ Elvis           │     │
+│  │  (ezpz.db) │    │ (localhost:3000) │     │
+│  └─────────────┘    └─────────────────┘     │
+│                                             │
+│  ┌─────────────┐    ┌─────────────────┐     │
+│  │ Audio files │    │ External APIs   │     │
+│  │ /data/ezpz/ │    │ - Claude (parse)│     │
+│  │   audio/    │    │ - Whisper (STT) │     │
+│  └─────────────┘    └─────────────────┘     │
+│                                             │
+│  Nginx/Caddy → ezpz.yourdomain.com → :3001 │
+└─────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -30,14 +39,16 @@
 | Layer          | Choice                        | Why                                    |
 |----------------|-------------------------------|----------------------------------------|
 | Framework      | Next.js 14 (App Router)       | Single deploy, API + UI, PWA support   |
-| Database       | PostgreSQL via Supabase        | Free tier, hosted, real-time optional  |
+| Database       | SQLite (local file)           | Zero setup, runs on same VPS as Elvis  |
 | ORM            | Prisma                        | Type-safe, migrations, easy schemas    |
 | Auth           | NextAuth.js + Google OAuth    | Built for Next.js, Google-native       |
 | Transcription  | OpenAI Whisper API            | Best price/quality, simple REST call   |
 | Intent Parsing | Claude API (structured output)| Best at nuanced extraction + reasoning |
 | Styling        | Tailwind CSS                  | Mobile-first, fast to build            |
 | Voice Capture  | Browser MediaRecorder API     | No dependencies, works in PWA          |
-| Deploy         | Vercel                        | Zero-config Next.js hosting            |
+| File Storage   | Local filesystem (/data/ezpz) | Simple, no external dependencies       |
+| Deploy         | Same VPS as Elvis             | Co-located, localhost webhook calls    |
+| Reverse Proxy  | Nginx or Caddy                | HTTPS + public URL for EZPZ           |
 
 ## Database Schema (Prisma)
 
@@ -56,7 +67,7 @@
 
 ### Phase 1: Project Skeleton + Auth
 1. Initialize Next.js project with TypeScript, Tailwind, PWA manifest
-2. Set up Prisma with PostgreSQL schema
+2. Set up Prisma with SQLite schema
 3. Configure NextAuth with Google OAuth
 4. Create basic layout (mobile-first shell with bottom nav)
 5. Protect routes — only authorized users
@@ -64,7 +75,7 @@
 ### Phase 2: Capture + Transcription
 6. Build capture screen — text input + voice record button
 7. Implement MediaRecorder for voice capture (WebM/MP4 audio)
-8. Upload audio to storage (Supabase Storage or S3)
+8. Save audio to local filesystem (/data/ezpz/audio/)
 9. Transcribe via Whisper API
 10. Create Intake record in database
 
@@ -135,7 +146,7 @@
     "transcript": "...",
     "submitter": "nathan@example.com"
   },
-  "callback_url": "https://ezpz.app/api/actions/uuid/callback"
+  "callback_url": "https://ezpz.yourdomain.com/api/actions/uuid/callback"
 }
 ```
 
@@ -155,16 +166,15 @@
 ## Environment Variables Needed
 
 ```
-DATABASE_URL=              # Supabase PostgreSQL connection string
-NEXTAUTH_SECRET=           # Random secret for session encryption
-GOOGLE_CLIENT_ID=          # Google OAuth app
-GOOGLE_CLIENT_SECRET=      # Google OAuth app
-OPENAI_API_KEY=            # For Whisper transcription
-ANTHROPIC_API_KEY=         # For Claude intent parsing
-ELVIS_WEBHOOK_URL=         # Elvis endpoint to receive action items
-ELVIS_WEBHOOK_SECRET=      # Shared secret for webhook auth
-SUPABASE_URL=              # For file storage (audio uploads)
-SUPABASE_ANON_KEY=         # For file storage
+DATABASE_URL=file:./ezpz.db  # SQLite database file
+NEXTAUTH_SECRET=              # Random secret for session encryption
+GOOGLE_CLIENT_ID=             # Google OAuth app
+GOOGLE_CLIENT_SECRET=         # Google OAuth app
+OPENAI_API_KEY=               # For Whisper transcription
+ANTHROPIC_API_KEY=            # For Claude intent parsing
+ELVIS_WEBHOOK_URL=http://localhost:3000  # Elvis on same VPS
+ELVIS_WEBHOOK_SECRET=         # Shared secret for webhook auth
+AUDIO_STORAGE_PATH=/data/ezpz/audio    # Local filesystem for audio files
 ```
 
 ## What's Deferred (Post-MVP)
