@@ -39,6 +39,9 @@ next-env.d.ts
 # prisma
 prisma/dev.db
 prisma/dev.db-journal
+prisma/widgeter.db
+prisma/widgeter.db-journal
 
-# audio uploads
+# media uploads
+/data/widgeter/
 /data/audio/
