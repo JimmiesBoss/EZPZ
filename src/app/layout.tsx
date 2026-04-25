@@ -1,35 +1,22 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import SessionProvider from "@/components/SessionProvider";
-import ServiceWorkerRegistrar from "@/components/ServiceWorker";
 
 export const metadata: Metadata = {
-  title: "EZPZ",
-  description: "Voice-to-action task capture",
-  manifest: "/manifest.json",
+  title: "Widgeter",
+  description: "AI-powered Parts Finder Engine",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false,
-  themeColor: "#000000",
+  themeColor: "#0a0a0a",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-white text-gray-900 antialiased">
-        <SessionProvider>
-          {children}
-          <ServiceWorkerRegistrar />
-        </SessionProvider>
-      </body>
+      <body className="bg-white text-neutral-900 antialiased">{children}</body>
     </html>
   );
 }
