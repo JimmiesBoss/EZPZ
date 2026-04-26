@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/roles";
 import { getCategory, getSubcategory } from "@/lib/categories";
+import ClarificationChat from "@/components/ClarificationChat";
 
 export const dynamic = "force-dynamic";
 
@@ -98,23 +99,19 @@ export default async function RequestDetail({ params }: { params: { id: string }
       {request.messages.length > 0 && (
         <section className="border border-neutral-200 rounded-2xl p-4 flex flex-col gap-2">
           <p className="text-xs uppercase tracking-wide text-neutral-500">Clarifications</p>
-          <ul className="flex flex-col gap-2">
-            {request.messages.map((m) => (
-              <li
-                key={m.id}
-                className={`text-sm rounded-xl px-3 py-2 ${
-                  m.direction === "USER"
-                    ? "bg-black text-white self-end max-w-[80%]"
-                    : "bg-neutral-100 self-start max-w-[80%]"
-                }`}
-              >
-                {m.content}
-              </li>
-            ))}
-          </ul>
+          <ClarificationChat
+            requestId={request.id}
+            messages={request.messages.map((m) => ({
+              id: m.id,
+              direction: m.direction as "SYSTEM" | "USER" | "OPERATOR",
+              content: m.content,
+              createdAt: m.createdAt.toISOString(),
+            }))}
+            enabled={request.status === "CLARIFYING" && request.buyerId === user.id}
+          />
           {missing.length > 0 && request.status === "CLARIFYING" && (
             <p className="text-xs text-neutral-500">
-              Phase 6 will let you answer these inline.
+              {missing.length} more {missing.length === 1 ? "field" : "fields"} needed.
             </p>
           )}
         </section>
