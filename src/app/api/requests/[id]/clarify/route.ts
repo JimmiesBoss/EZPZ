@@ -4,6 +4,7 @@ import { requireBuyer } from "@/lib/roles";
 import { mergeClarification } from "@/lib/claude";
 import { audit } from "@/lib/audit";
 import { canTransitionRequest, type RequestStatus } from "@/lib/stateMachine";
+import { dispatchSearch } from "@/lib/search";
 
 export async function POST(
   req: NextRequest,
@@ -88,6 +89,10 @@ export async function POST(
     requestId: request.id,
     metadata: { stillMissing: merged.stillMissing, status: finalStatus },
   });
+
+  if (finalStatus === "SEARCHING" && fromStatus !== "SEARCHING") {
+    void dispatchSearch(request.id);
+  }
 
   return NextResponse.json({ status: finalStatus, stillMissing: merged.stillMissing });
 }

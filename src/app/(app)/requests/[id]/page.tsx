@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/roles";
 import { getCategory, getSubcategory } from "@/lib/categories";
 import ClarificationChat from "@/components/ClarificationChat";
+import MatchCard from "@/components/MatchCard";
+import { sanitizeMatch } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +18,17 @@ export default async function RequestDetail({ params }: { params: { id: string }
     include: {
       messages: { orderBy: { createdAt: "asc" } },
       images: true,
+      matches: { orderBy: { confidence: "desc" } },
     },
   });
   if (!request) notFound();
   if (request.buyerId !== user.id && user.role !== "OPERATOR") notFound();
+
+  const visibleMatches = request.matches
+    .filter((m) => user.role === "OPERATOR" || !m.hiddenFromBuyer)
+    .map((m) => sanitizeMatch(m, user.role));
+  const canApprove =
+    request.status === "AWAITING_REVIEW" && request.buyerId === user.id;
 
   const cat = getCategory(request.primaryCategory);
   const sub = getSubcategory(request.primaryCategory, request.subCategory);
@@ -95,6 +104,33 @@ export default async function RequestDetail({ params }: { params: { id: string }
           </dl>
         )}
       </section>
+
+      {visibleMatches.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-wide text-neutral-500 px-1">
+            Matches ({visibleMatches.length})
+          </p>
+          {request.status === "SEARCHING" && (
+            <p className="text-sm text-neutral-500 px-1">Sourcing… more results may arrive.</p>
+          )}
+          <div className="flex flex-col gap-3">
+            {visibleMatches.map((m) => (
+              <MatchCard
+                key={m.id}
+                match={m}
+                canApprove={canApprove && m.status !== "BUYER_APPROVED"}
+                serviceFeeCents={request.serviceFeeCents}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {request.matches.length === 0 && request.status === "SEARCHING" && (
+        <section className="border border-neutral-200 rounded-2xl p-4 text-sm text-neutral-600">
+          AI agents are searching marketplaces… check back in a moment.
+        </section>
+      )}
 
       {request.messages.length > 0 && (
         <section className="border border-neutral-200 rounded-2xl p-4 flex flex-col gap-2">

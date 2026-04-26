@@ -8,6 +8,7 @@ import { getWaiverForCategory } from "@/lib/waivers";
 import { parsePartsRequest } from "@/lib/claude";
 import { audit } from "@/lib/audit";
 import { IMAGE_DIR } from "@/lib/storage";
+import { dispatchSearch } from "@/lib/search";
 
 async function loadImageBase64(url: string) {
   const filename = url.split("/").pop();
@@ -153,6 +154,8 @@ export async function POST(req: NextRequest) {
         },
       });
     }
+  } else if (status === "SEARCHING") {
+    void dispatchSearch(created.id);
   }
 
   return NextResponse.json({ id: created.id, status });
