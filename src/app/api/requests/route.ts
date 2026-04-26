@@ -1,10 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
+import fs from "fs/promises";
 import { prisma } from "@/lib/prisma";
 import { requireBuyer } from "@/lib/roles";
 import { getCategory, getSubcategory } from "@/lib/categories";
 import { getWaiverForCategory } from "@/lib/waivers";
 import { parsePartsRequest } from "@/lib/claude";
 import { audit } from "@/lib/audit";
+import { IMAGE_DIR } from "@/lib/storage";
+
+async function loadImageBase64(url: string) {
+  const filename = url.split("/").pop();
+  if (!filename) return null;
+  const safe = path.basename(filename);
+  const fullPath = path.join(IMAGE_DIR, safe);
+  try {
+    const data = await fs.readFile(fullPath);
+    const ext = safe.split(".").pop()?.toLowerCase();
+    const mediaType =
+      ext === "png"
+        ? "image/png"
+        : ext === "webp"
+          ? "image/webp"
+          : ext === "heic"
+            ? "image/heic"
+            : "image/jpeg";
+    return { mediaType, data: data.toString("base64") };
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   let user;
@@ -24,6 +49,9 @@ export async function POST(req: NextRequest) {
     description,
     budgetCents,
     waiverAccepted,
+    imageUrls,
+    audioUrl,
+    transcript,
   } = body as {
     primaryCategory?: string;
     subCategory?: string;
@@ -31,6 +59,9 @@ export async function POST(req: NextRequest) {
     description?: string;
     budgetCents?: number;
     waiverAccepted?: boolean;
+    imageUrls?: string[];
+    audioUrl?: string;
+    transcript?: string;
   };
 
   const cat = primaryCategory ? getCategory(primaryCategory) : undefined;
@@ -45,12 +76,18 @@ export async function POST(req: NextRequest) {
 
   const waiver = getWaiverForCategory(cat.id);
 
+  const imgList = Array.isArray(imageUrls) ? imageUrls.slice(0, 5) : [];
+  const imageBase64 = (
+    await Promise.all(imgList.map((u) => loadImageBase64(u)))
+  ).filter((v): v is { mediaType: string; data: string } => v !== null);
+
   let parsed;
   try {
     parsed = await parsePartsRequest({
       primaryCategory: cat.id,
       subCategory: sub?.id,
       text: `${title}\n\n${description}`,
+      imageBase64,
     });
   } catch (err) {
     parsed = {
@@ -76,13 +113,20 @@ export async function POST(req: NextRequest) {
       subCategory: sub?.id ?? "",
       title,
       rawDescription: description,
+      transcript: transcript || null,
+      audioUrl: audioUrl || null,
       specs: JSON.stringify(parsed.specs),
       missingFields: JSON.stringify(parsed.missingFields),
       rejectionReasons: JSON.stringify(parsed.rejectionReasons),
       budgetCents,
-      waiverVersion: waiver?.version ? `${waiver.id}@${waiver.version}` : waiver?.id,
+      waiverVersion: waiver ? `${waiver.id}@${waiver.version}` : null,
       waiverAcceptedAt: new Date(),
       status,
+      images: imgList.length
+        ? {
+            create: imgList.map((url) => ({ url })),
+          }
+        : undefined,
     },
   });
 
@@ -90,7 +134,13 @@ export async function POST(req: NextRequest) {
     event: "REQUEST_CREATED",
     actorId: user.id,
     requestId: created.id,
-    metadata: { status, missingFields: parsed.missingFields, rejectionReasons: parsed.rejectionReasons },
+    metadata: {
+      status,
+      missingFields: parsed.missingFields,
+      rejectionReasons: parsed.rejectionReasons,
+      images: imgList.length,
+      hasVoice: Boolean(transcript),
+    },
   });
 
   if (status === "CLARIFYING") {

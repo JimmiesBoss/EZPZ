@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 interface Waiver {
@@ -10,33 +10,46 @@ interface Waiver {
   version: string;
 }
 
+interface DraftPayload {
+  primary: string;
+  sub: string;
+  title: string;
+  description: string;
+  budget: string;
+  imageUrls: string[];
+  audioUrl: string;
+  transcript: string;
+}
+
+const DRAFT_KEY = "widgeter:newRequest";
+
 export default function ReviewStep() {
   const router = useRouter();
-  const params = useSearchParams();
-  const primary = params.get("primary") ?? "";
-  const sub = params.get("sub") ?? "";
-  const title = params.get("title") ?? "";
-  const description = params.get("description") ?? "";
-  const budget = params.get("budget") ?? "0";
-
+  const [draft, setDraft] = useState<DraftPayload | null>(null);
   const [waiver, setWaiver] = useState<Waiver | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/categories`)
-      .then((r) => r.json())
-      .then(() => {
-        // Waiver is fetched via a small inline endpoint — derive from category id below.
-      });
-    // Fetch waiver via dedicated endpoint
-    fetch(`/api/waivers?category=${encodeURIComponent(primary)}`)
-      .then((r) => r.json())
-      .then((d) => setWaiver(d.waiver ?? null));
-  }, [primary]);
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) {
+      router.replace("/requests/new");
+      return;
+    }
+    try {
+      const d = JSON.parse(raw) as DraftPayload;
+      setDraft(d);
+      fetch(`/api/waivers?category=${encodeURIComponent(d.primary)}`)
+        .then((r) => r.json())
+        .then((res) => setWaiver(res.waiver ?? null));
+    } catch {
+      router.replace("/requests/new");
+    }
+  }, [router]);
 
   async function submit() {
+    if (!draft) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -44,12 +57,15 @@ export default function ReviewStep() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          primaryCategory: primary,
-          subCategory: sub || undefined,
-          title,
-          description,
-          budgetCents: Math.round(parseFloat(budget) * 100),
+          primaryCategory: draft.primary,
+          subCategory: draft.sub || undefined,
+          title: draft.title,
+          description: draft.description,
+          budgetCents: Math.round(parseFloat(draft.budget) * 100),
           waiverAccepted: accepted,
+          imageUrls: draft.imageUrls,
+          audioUrl: draft.audioUrl || undefined,
+          transcript: draft.transcript || undefined,
         }),
       });
       if (!res.ok) {
@@ -57,12 +73,15 @@ export default function ReviewStep() {
         throw new Error(data.error ?? "Failed to submit");
       }
       const data = await res.json();
+      sessionStorage.removeItem(DRAFT_KEY);
       router.push(`/requests/${data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to submit");
       setSubmitting(false);
     }
   }
+
+  if (!draft) return null;
 
   return (
     <div className="flex flex-col gap-5 pb-8">
@@ -73,15 +92,23 @@ export default function ReviewStep() {
 
       <section className="border border-neutral-200 rounded-2xl p-4 flex flex-col gap-2">
         <p className="text-xs uppercase tracking-wide text-neutral-500">Summary</p>
-        <p className="font-medium">{title}</p>
-        <p className="text-sm text-neutral-700 whitespace-pre-line">{description}</p>
+        <p className="font-medium">{draft.title}</p>
+        <p className="text-sm text-neutral-700 whitespace-pre-line">{draft.description}</p>
         <p className="text-sm text-neutral-600">
-          Budget: ${parseFloat(budget).toFixed(2)}
+          Budget: ${parseFloat(draft.budget).toFixed(2)}
         </p>
         <p className="text-xs text-neutral-500">
-          Category: {primary}
-          {sub ? ` · ${sub}` : ""}
+          Category: {draft.primary}
+          {draft.sub ? ` · ${draft.sub}` : ""}
         </p>
+        {draft.imageUrls.length > 0 && (
+          <p className="text-xs text-neutral-500">
+            {draft.imageUrls.length} photo{draft.imageUrls.length === 1 ? "" : "s"} attached
+          </p>
+        )}
+        {draft.transcript && (
+          <p className="text-xs text-neutral-500">Voice note attached</p>
+        )}
       </section>
 
       {waiver && (

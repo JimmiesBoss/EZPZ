@@ -55,7 +55,27 @@ export default async function RequestDetail({ params }: { params: { id: string }
       <section className="border border-neutral-200 rounded-2xl p-4 flex flex-col gap-2">
         <p className="text-xs uppercase tracking-wide text-neutral-500">Description</p>
         <p className="text-sm whitespace-pre-line">{request.rawDescription}</p>
+        {request.audioUrl && (
+          <audio controls src={request.audioUrl} className="w-full mt-1" />
+        )}
       </section>
+
+      {request.images.length > 0 && (
+        <section className="border border-neutral-200 rounded-2xl p-4 flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">Photos</p>
+          <div className="flex flex-wrap gap-2">
+            {request.images.map((img) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={img.id}
+                src={img.url}
+                alt="request"
+                className="w-24 h-24 object-cover rounded-lg border border-neutral-200"
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="border border-neutral-200 rounded-2xl p-4 flex flex-col gap-2">
         <p className="text-xs uppercase tracking-wide text-neutral-500">Parsed specs</p>
