@@ -6,6 +6,7 @@ import { getCategory, getSubcategory } from "@/lib/categories";
 import ClarificationChat from "@/components/ClarificationChat";
 import MatchCard from "@/components/MatchCard";
 import { sanitizeMatch } from "@/lib/sanitize";
+import OrderTimeline from "@/components/OrderTimeline";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function RequestDetail({ params }: { params: { id: string }
       messages: { orderBy: { createdAt: "asc" } },
       images: true,
       matches: { orderBy: { confidence: "desc" } },
+      order: true,
     },
   });
   if (!request) notFound();
@@ -129,6 +131,22 @@ export default async function RequestDetail({ params }: { params: { id: string }
       {request.matches.length === 0 && request.status === "SEARCHING" && (
         <section className="border border-neutral-200 rounded-2xl p-4 text-sm text-neutral-600">
           AI agents are searching marketplaces… check back in a moment.
+        </section>
+      )}
+
+      {request.order && (
+        <section className="border border-neutral-200 rounded-2xl p-4 flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">Order</p>
+          <p className="text-sm">
+            Total: ${(request.order.totalCents / 100).toFixed(2)} · Payment:{" "}
+            <span className="font-medium">{request.order.paymentStatus}</span> · Fulfillment:{" "}
+            <span className="font-medium">{request.order.fulfillmentStatus}</span>
+          </p>
+          <p className="text-xs text-neutral-500">Escrow: {request.order.escrowState}</p>
+          {request.order.trackingNumber && (
+            <p className="text-xs text-neutral-600">Tracking: {request.order.trackingNumber}</p>
+          )}
+          <OrderTimeline timelineJson={request.order.timeline} />
         </section>
       )}
 
