@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireBuyer } from "@/lib/roles";
+import { getSessionUser } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export default async function RequestsPage() {
-  const user = await requireBuyer();
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
   const requests = await prisma.partsRequest.findMany({
     where: user.role === "OPERATOR" ? {} : { buyerId: user.id },
     orderBy: { updatedAt: "desc" },

@@ -1,12 +1,6 @@
 import Link from "next/link";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
 
-export default async function Home() {
-  const session = await getServerSession(authOptions);
-  if (session) redirect("/requests");
-
+export default function Home() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
       <h1 className="text-4xl font-bold tracking-tight">Widgeter</h1>
@@ -19,6 +13,9 @@ export default async function Home() {
         className="mt-8 bg-black text-white rounded-full px-6 py-3 text-base font-medium"
       >
         Get started
+      </Link>
+      <Link href="/requests" className="mt-3 text-sm text-neutral-500 underline">
+        Already signed in? Open my requests
       </Link>
     </main>
   );
