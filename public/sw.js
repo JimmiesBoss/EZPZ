@@ -1,5 +1,5 @@
-const CACHE_NAME = "ezpz-v1";
-const STATIC_ASSETS = ["/", "/login", "/queue", "/manifest.json"];
+const CACHE_NAME = "widgeter-v1";
+const STATIC_ASSETS = ["/", "/login", "/requests", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

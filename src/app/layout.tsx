@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import SessionProvider from "@/components/SessionProvider";
+import ServiceWorker from "@/components/ServiceWorker";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Widgeter",
   description: "AI-powered Parts Finder Engine",
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
@@ -19,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="bg-white text-neutral-900 antialiased">
         <SessionProvider>{children}</SessionProvider>
+        <ServiceWorker />
       </body>
     </html>
   );
