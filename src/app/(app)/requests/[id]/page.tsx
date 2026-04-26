@@ -7,6 +7,7 @@ import ClarificationChat from "@/components/ClarificationChat";
 import MatchCard from "@/components/MatchCard";
 import { sanitizeMatch } from "@/lib/sanitize";
 import OrderTimeline from "@/components/OrderTimeline";
+import EscrowActions from "@/components/EscrowActions";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,19 @@ export default async function RequestDetail({ params }: { params: { id: string }
           <p className="text-xs text-neutral-500">Escrow: {request.order.escrowState}</p>
           {request.order.trackingNumber && (
             <p className="text-xs text-neutral-600">Tracking: {request.order.trackingNumber}</p>
+          )}
+          {request.buyerId === user.id && (
+            <EscrowActions
+              orderId={request.order.id}
+              escrowState={request.order.escrowState}
+              fulfillmentStatus={request.order.fulfillmentStatus}
+              buyerVerificationDeadline={
+                request.order.buyerVerificationDeadline?.toISOString() ?? null
+              }
+              sellerPayoutReleaseAt={
+                request.order.sellerPayoutReleaseAt?.toISOString() ?? null
+              }
+            />
           )}
           <OrderTimeline timelineJson={request.order.timeline} />
         </section>
