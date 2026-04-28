@@ -45,3 +45,6 @@ prisma/widgeter.db-journal
 # media uploads
 /data/widgeter/
 /data/audio/
+
+# handoff bundle (rebuild as needed; do not commit)
+/widgeter-handoff.zip
