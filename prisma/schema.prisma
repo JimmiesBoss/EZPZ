@@ -12,22 +12,21 @@ model User {
   email     String   @unique
   name      String?
   image     String?
-  role      String   @default("SUBMITTER") // OWNER | SUBMITTER | EXECUTOR
   googleId  String?  @unique
+  role      String   @default("BUYER") // BUYER | OPERATOR
+  isAdmin   Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  // NextAuth fields
   accounts Account[]
   sessions Session[]
 
-  // App relations
-  submittedIntakes       Intake[]               @relation("SubmittedIntakes")
-  ownedIntakes           Intake[]               @relation("OwnedIntakes")
-  clarificationMessages  ClarificationMessage[]
-  auditLogs              AuditLog[]
+  requests       PartsRequest[]         @relation("BuyerRequests")
+  curations      PartsRequest[]         @relation("CuratorAssignments")
+  clarifications ClarificationMessage[]
+  auditLogs      AuditLog[]
 }
 
-// NextAuth models
+// NextAuth
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -64,65 +63,126 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// App models
-model Intake {
-  id            String   @id @default(cuid())
-  sourceType    String   // VOICE | TEXT
-  rawText       String?
-  audioUrl      String?
-  transcript    String?
-  submitterId   String
-  targetOwnerId String
-  createdAt     DateTime @default(now())
+model PartsRequest {
+  id               String   @id @default(cuid())
+  buyerId          String
+  curatorId        String?
+  primaryCategory  String
+  subCategory      String
+  title            String
+  rawDescription   String
+  transcript       String?
+  audioUrl         String?
+  specs            String   @default("{}")
+  missingFields    String   @default("[]")
+  rejectionReasons String   @default("[]")
+  budgetCents      Int
+  serviceFeeCents  Int      @default(2500)
+  waiverVersion    String?
+  waiverAcceptedAt DateTime?
+  status           String   @default("DRAFT")
+  paymentAuthId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  submitter   User         @relation("SubmittedIntakes", fields: [submitterId], references: [id])
-  targetOwner User         @relation("OwnedIntakes", fields: [targetOwnerId], references: [id])
-  actionItems ActionItem[]
+  buyer    User                   @relation("BuyerRequests", fields: [buyerId], references: [id])
+  curator  User?                  @relation("CuratorAssignments", fields: [curatorId], references: [id])
+  images   RequestImage[]
+  messages ClarificationMessage[]
+  matches  Match[]
+  order    Order?
 
-  @@index([targetOwnerId])
-  @@index([submitterId])
+  @@index([buyerId])
+  @@index([status])
+  @@index([curatorId])
+  @@index([primaryCategory])
 }
 
-model ActionItem {
-  id                 String   @id @default(cuid())
-  intakeId           String
-  actionType         String   // TASK | MEETING | EMAIL
-  status             String   @default("NEEDS_INFO") // NEEDS_INFO | READY | IN_PROGRESS | DONE | ARCHIVED
-  extractedFields    String   @default("{}") // JSON stored as text (SQLite)
-  missingFields      String   @default("[]") // JSON stored as text (SQLite)
-  inferredFields     String   @default("{}") // JSON stored as text (SQLite)
-  executionArtifacts String   @default("{}") // JSON stored as text (SQLite)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+model RequestImage {
+  id            String   @id @default(cuid())
+  requestId     String
+  url           String
+  visionSummary String?
+  createdAt     DateTime @default(now())
 
-  intake                Intake                 @relation(fields: [intakeId], references: [id])
-  clarificationMessages ClarificationMessage[]
-  auditLogs             AuditLog[]
+  request PartsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
-  @@index([intakeId])
-  @@index([status])
+  @@index([requestId])
 }
 
 model ClarificationMessage {
   id           String   @id @default(cuid())
-  actionItemId String
-  direction    String   // SYSTEM | USER
+  requestId    String
+  direction    String // SYSTEM | USER | OPERATOR
   content      String
   answeredById String?
   createdAt    DateTime @default(now())
 
-  actionItem ActionItem @relation(fields: [actionItemId], references: [id])
-  answeredBy User?      @relation(fields: [answeredById], references: [id])
+  request    PartsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  answeredBy User?        @relation(fields: [answeredById], references: [id])
+
+  @@index([requestId])
+}
+
+model Match {
+  id                String   @id @default(cuid())
+  requestId         String
+  sourceMarketplace String
+  listingUrl        String
+  sellerHandle      String
+  sellerLocation    String
+  displayLabel      String
+  title             String
+  priceCents        Int
+  shippingCents     Int      @default(0)
+  condition         String
+  thumbnailUrl      String?
+  specHighlights    String   @default("{}")
+  proofVideoUrl     String?
+  confidence        Float
+  status            String   @default("PROPOSED")
+  hiddenFromBuyer   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  request PartsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  order   Order?
+
+  @@index([requestId])
+  @@index([status])
+}
+
+model Order {
+  id                        String    @id @default(cuid())
+  requestId                 String    @unique
+  matchId                   String    @unique
+  totalCents                Int
+  paymentStatus             String    @default("NONE")
+  fulfillmentStatus         String    @default("PENDING")
+  escrowState               String    @default("HELD")
+  buyerVerificationDeadline DateTime?
+  sellerPayoutReleaseAt     DateTime?
+  trackingNumber            String?
+  notes                     String?
+  timeline                  String    @default("[]")
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  request PartsRequest @relation(fields: [requestId], references: [id])
+  match   Match        @relation(fields: [matchId], references: [id])
 }
 
 model AuditLog {
-  id           String   @id @default(cuid())
-  actionItemId String?
-  event        String
-  actorId      String?
-  metadata     String   @default("{}") // JSON stored as text (SQLite)
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  event     String
+  requestId String?
+  matchId   String?
+  orderId   String?
+  actorId   String?
+  metadata  String   @default("{}")
+  createdAt DateTime @default(now())
 
-  actionItem ActionItem? @relation(fields: [actionItemId], references: [id])
-  actor      User?       @relation(fields: [actorId], references: [id])
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([requestId])
 }

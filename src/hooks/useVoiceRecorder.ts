@@ -1,77 +1,74 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-interface UseVoiceRecorderReturn {
+interface State {
   isRecording: boolean;
   duration: number;
-  start: () => Promise<void>;
-  stop: () => Promise<Blob | null>;
   error: string | null;
 }
 
-export function useVoiceRecorder(): UseVoiceRecorderReturn {
-  const [isRecording, setIsRecording] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const mediaRecorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+export function useVoiceRecorder() {
+  const [state, setState] = useState<State>({
+    isRecording: false,
+    duration: 0,
+    error: null,
+  });
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
 
   const start = useCallback(async () => {
-    setError(null);
     try {
+      setState({ isRecording: false, duration: 0, error: null });
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Prefer webm, fall back to mp4
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/mp4";
-
-      const recorder = new MediaRecorder(stream, { mimeType });
-      chunks.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.current.push(e.data);
+      streamRef.current = stream;
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
       };
-
-      recorder.start(100); // collect in 100ms chunks
-      mediaRecorder.current = recorder;
-      setIsRecording(true);
-      setDuration(0);
-
-      timerRef.current = setInterval(() => {
-        setDuration((d) => d + 1);
+      mr.start();
+      mediaRef.current = mr;
+      setState({ isRecording: true, duration: 0, error: null });
+      tickRef.current = setInterval(() => {
+        setState((s) => ({ ...s, duration: s.duration + 1 }));
       }, 1000);
-    } catch {
-      setError("Microphone access denied");
+    } catch (err) {
+      setState({
+        isRecording: false,
+        duration: 0,
+        error: err instanceof Error ? err.message : "Microphone unavailable",
+      });
     }
   }, []);
 
   const stop = useCallback(async (): Promise<Blob | null> => {
+    const mr = mediaRef.current;
+    if (!mr) return null;
     return new Promise((resolve) => {
-      const recorder = mediaRecorder.current;
-      if (!recorder || recorder.state === "inactive") {
-        resolve(null);
-        return;
-      }
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunks.current, { type: recorder.mimeType });
-        // Stop all tracks to release mic
-        recorder.stream.getTracks().forEach((t) => t.stop());
-        setIsRecording(false);
+      mr.onstop = () => {
+        if (tickRef.current) {
+          clearInterval(tickRef.current);
+          tickRef.current = null;
+        }
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setState((s) => ({ ...s, isRecording: false }));
         resolve(blob);
       };
-
-      recorder.stop();
+      mr.stop();
     });
   }, []);
 
-  return { isRecording, duration, start, stop, error };
+  return { ...state, start, stop };
 }

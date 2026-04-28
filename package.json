@@ -1,18 +1,23 @@
 {
-  "name": "ezpz",
+  "name": "widgeter",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.11.1",
+    "@auth/prisma-adapter": "^2.11.2",
     "@prisma/client": "^5.22.0",
     "next": "14.2.35",
-    "next-auth": "^4.24.13",
+    "next-auth": "^4.24.14",
     "prisma": "^5.22.0",
     "react": "^18",
     "react-dom": "^18"
@@ -25,6 +30,7 @@
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

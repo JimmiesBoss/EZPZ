@@ -2,32 +2,46 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 
-const tabs = [
-  { href: "/", label: "Capture", icon: "+" },
-  { href: "/queue", label: "Queue", icon: "☰" },
+const items = [
+  { href: "/requests", label: "Requests", match: (p: string) => p.startsWith("/requests") },
+  { href: "/requests/new", label: "New", match: (p: string) => p === "/requests/new" },
 ];
 
+const operatorItem = {
+  href: "/operator",
+  label: "Operator",
+  match: (p: string) => p.startsWith("/operator"),
+};
+
 export default function BottomNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
+  const { data: session } = useSession();
+  const nav = session?.user?.role === "OPERATOR" ? [...items, operatorItem] : items;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around py-2 px-4 safe-bottom z-50">
-      {tabs.map((tab) => {
-        const active = pathname === tab.href || pathname.startsWith(tab.href + "/");
+    <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-neutral-200 flex items-stretch justify-around pb-[var(--safe-bottom)] z-40">
+      {nav.map((item) => {
+        const active = item.match(pathname);
         return (
           <Link
-            key={tab.href}
-            href={tab.href}
-            className={`flex flex-col items-center gap-0.5 text-xs font-medium transition-colors ${
-              active ? "text-black" : "text-gray-400"
+            key={item.href}
+            href={item.href}
+            className={`flex-1 text-center py-3 text-xs font-medium ${
+              active ? "text-black" : "text-neutral-400"
             }`}
           >
-            <span className="text-xl leading-none">{tab.icon}</span>
-            <span>{tab.label}</span>
+            {item.label}
           </Link>
         );
       })}
+      <button
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        className="flex-1 text-center py-3 text-xs font-medium text-neutral-400"
+      >
+        Sign out
+      </button>
     </nav>
   );
 }

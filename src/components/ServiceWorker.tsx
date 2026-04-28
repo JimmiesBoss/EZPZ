@@ -2,14 +2,17 @@
 
 import { useEffect } from "react";
 
-export default function ServiceWorkerRegistrar() {
+export default function ServiceWorker() {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        // Service worker registration failed — not critical
-      });
-    }
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      process.env.NODE_ENV !== "production"
+    )
+      return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* swallow */
+    });
   }, []);
-
   return null;
 }
