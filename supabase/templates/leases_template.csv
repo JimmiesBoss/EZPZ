@@ -1,0 +1,2 @@
+property_name,lease_start_date,lease_end_date,lease_type,annual_rent,cams_annual,other_annual_costs,has_break_clause,break_date,break_penalty_type,break_penalty_amount
+HQ Tower,2022-01-01,2031-01-01,gross,2000000,400000,0,false,,none,0

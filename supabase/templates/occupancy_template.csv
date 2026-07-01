@@ -1,0 +1,2 @@
+property_name,data_source,measurement_date,occupied_desks,total_desks_available,occupancy_rate_percent,average_occupancy_rate_percent
+HQ Tower,badge_access,2025-12-01,190,220,86,72
