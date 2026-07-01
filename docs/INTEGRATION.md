@@ -5,17 +5,24 @@ How the Lovable front end talks to this backend. Two channels:
 1. **Direct data API (Supabase)** for CRUD.
 2. **Edge Functions** for the three heavy operations.
 
-## 0. Tenancy in one paragraph
+## 0. Tenancy & access in one paragraph
 
 An **organization** is the tenant and owns exactly **one portfolio**. A user
-belongs to an organization with a **role** (`admin`/`editor`/`viewer`) and only
-ever sees their own org's data. On first login a user either creates an org
-(becoming its admin) or is auto-joined to one they were invited to. Resolve the
-current workspace (org + portfolio + role) with:
+belongs to an org with a **role** (`admin`/`editor`/`viewer`) and only ever sees
+their own org's data. Access is **invite-only**: a **platform admin** (the
+operator) provisions each org and its first admin; after that, org admins approve
+**corporate email domains**, and anyone who signs in (Google, Microsoft, or
+manual) with an approved-domain email is **auto-joined** on first login.
+Explicit email invites cover users outside an approved domain. A user with
+neither lands in no org. Resolve the current workspace with:
 
 ```ts
 const { data: workspaces } = await supabase.from('my_workspaces').select('*');
-const ws = workspaces[0];   // { org_id, org_name, portfolio_id, portfolio_name, my_role, ... }
+if (workspaces.length === 0) {
+  // No access yet — show "ask your admin for an invite" (do NOT offer org creation).
+} else {
+  const ws = workspaces[0];  // { org_id, org_name, portfolio_id, portfolio_name, my_role, ... }
+}
 ```
 
 ## 1. CRUD via Supabase (no custom code)
@@ -49,26 +56,40 @@ Brief endpoint → Supabase equivalent:
 | lease / occupancy / space CRUD | same pattern on the matching table (set `org_id`) |
 | `GET .../snapshots` / `snapshots/{id}` | `.from('analysis_snapshots').select(...)` |
 
-## 1b. Onboarding & user administration (RPCs)
+## 1b. Provisioning, domains & user administration (RPCs)
 
 ```ts
-// First-run: create my org + its portfolio (I become admin)
+// PLATFORM ADMIN only — provision an org, its portfolio, an approved domain, and
+// its first admin (by email). Fails for non-platform-admins.
 const { data } = await supabase.rpc('create_organization', {
-  org_name: 'Acme Corp', portfolio_name: 'Acme US Portfolio',
+  org_name: 'Acme Corp',
+  primary_domain: 'acme.com',          // corporate domain (public providers rejected)
+  admin_email: 'owner@acme.com',       // designated first admin (added or invited)
+  portfolio_name: 'Acme US Portfolio',
   industry: 'Technology', primary_region: 'US West',
-});           // -> [{ org_id, portfolio_id }]
+});                                     // -> { org_id, portfolio_id }
 
-// Invite / add a teammate with a role (admin only) -> 'added' | 'invited'
-await supabase.rpc('invite_member', { target_org: ws.org_id, member_email: 'x@acme.com', member_role: 'editor' });
+// Check whether the current user is a platform admin (to show the operator UI)
+const { data: isPlatformAdmin } = await supabase.rpc('is_platform_admin');
 
-// Change or remove a member (admin only)
+// ORG ADMIN — manage approved domains (drives auto-join)
+await supabase.rpc('add_org_domain',    { target_org: ws.org_id, d: 'acme.com' });
+await supabase.rpc('remove_org_domain', { target_org: ws.org_id, d: 'acme.com' });
+const { data: domains } = await supabase.from('organization_domains').select('*').eq('org_id', ws.org_id);
+
+// ORG ADMIN — invite / manage members
+await supabase.rpc('invite_member',   { target_org: ws.org_id, member_email: 'x@acme.com', member_role: 'editor' }); // 'added' | 'invited'
 await supabase.rpc('set_member_role', { target_org: ws.org_id, target_user: userId, new_role: 'viewer' });
-await supabase.rpc('remove_member',  { target_org: ws.org_id, target_user: userId });
+await supabase.rpc('remove_member',   { target_org: ws.org_id, target_user: userId });
 
-// Roster + pending invites (admins see invites)
 const { data: members } = await supabase.from('organization_members').select('*').eq('org_id', ws.org_id);
 const { data: invites } = await supabase.from('organization_invitations').select('*').eq('org_id', ws.org_id);
 ```
+
+> Provider note: Google / Microsoft OAuth and manual email signup all produce a
+> Supabase auth user with an email, so domain auto-join works identically across
+> them. Enabling the OAuth providers is a Supabase Auth project setting — no code
+> change here.
 
 ## 2. Edge Functions
 
@@ -132,5 +153,6 @@ Requires a private Storage bucket named `reports` (configurable via
   platform) and `SUPABASE_SERVICE_ROLE_KEY` (used only for the PDF Storage
   upload). Set them as function secrets; see `.env.example`.
 - A user only sees an org's data if they have an `organization_members` row for
-  it. New users bootstrap with `supabase.rpc('create_organization', ...)` (they
-  become admin); admins add teammates with `invite_member`. See `DEPLOYMENT.md` §5.
+  it. Orgs are provisioned by a platform admin (`create_organization`); users
+  then join via an approved email domain or an `invite_member` invitation. See
+  `DEPLOYMENT.md` §5.

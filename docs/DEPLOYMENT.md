@@ -22,11 +22,13 @@ supabase link --project-ref <your-project-ref>
 supabase db push          # runs supabase/migrations/*.sql in order
 ```
 
-This creates the tables (organizations, members, invitations, one-portfolio-per-org,
-and the portfolio data tables), the row-level-security policies, the tenancy /
+This creates the tables (organizations, members, invitations, domains,
+platform_admins, one-portfolio-per-org, and the portfolio data tables), the
+row-level-security + role policies, the Data API grants, the provisioning /
 user-admin RPCs (`create_organization`, `invite_member`, `set_member_role`,
-`remove_member`), the signup trigger that auto-joins invited users, and the
-private `reports` storage bucket.
+`remove_member`, `add_org_domain` / `remove_org_domain`), the signup trigger that
+auto-joins invited and approved-domain users, and the private `reports` storage
+bucket.
 
 Optional demo data (safe to skip in production):
 
@@ -58,29 +60,41 @@ supabase functions deploy export-pdf
 They are JWT-verified by default (`config.toml` → `[functions.*] verify_jwt = true`),
 so callers must pass a signed-in user's access token.
 
-## 5. First-run bootstrap (create an organization)
+## 5. First-run bootstrap (invite-only)
 
-RLS shows a user only the org they belong to. A new user creates their
-organization (and its single portfolio, becoming admin) via the RPC — normally
-from the onboarding screen:
+Access is invite-only. Bootstrap the operator, then provision orgs.
+
+**a. Make yourself a platform admin** (once, via SQL/Studio — sign in first so
+your auth user exists):
+
+```sql
+insert into platform_admins (user_id) values ('<your-auth-user-uuid>');
+```
+
+**b. Provision an organization** (as the platform admin) — sets the approved
+domain and the first org admin in one call:
 
 ```ts
 const { data } = await supabase.rpc('create_organization', {
-  org_name: 'Acme Corp', portfolio_name: 'Acme US Portfolio',
-  industry: 'Technology', primary_region: 'US West',
-});   // -> [{ org_id, portfolio_id }]
+  org_name: 'Acme Corp',
+  primary_domain: 'acme.com',        // corporate domain; public providers rejected
+  admin_email: 'owner@acme.com',     // first org admin (added if they exist, else invited)
+  portfolio_name: 'Acme US Portfolio',
+});   // -> { org_id, portfolio_id }
 ```
 
-Admins add teammates (existing users are added immediately; new emails get a
-pending invite auto-consumed at signup):
+**c. Users join** by signing in with an approved-domain email (auto-joined) or
+via an org admin's `invite_member`. Org admins manage domains with
+`add_org_domain` / `remove_org_domain`.
 
-```ts
-await supabase.rpc('invite_member', { target_org: orgId, member_email: 'teammate@acme.com', member_role: 'editor' });
-```
+**d. (Optional) Enable Google / Microsoft sign-in** in Supabase Auth → Providers.
+Domain auto-join works the same for OAuth and email signups.
 
-If you loaded the seed data, grant yourself access to the demo organization:
+If you loaded the seed data, either sign up with an `@acme.com` email (auto-joins
+the demo org) or add yourself directly:
 
 ```sql
+insert into platform_admins (user_id) values ('<your-auth-user-uuid>');   -- to provision orgs
 insert into organization_members (org_id, user_id, role)
 values ('00000000-0000-0000-0000-0000000000e1', '<your-auth-user-uuid>', 'admin');
 ```

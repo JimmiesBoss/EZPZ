@@ -2,14 +2,23 @@
 -- Run after migrations with the Supabase CLI (`supabase db reset` applies this),
 -- or `psql "$DATABASE_URL" -f supabase/seed.sql`.
 --
--- Tenancy model: one organization -> one portfolio. To see this data through RLS,
--- add yourself as a member of the demo org:
---   insert into organization_members (org_id, user_id, role)
---   values ('00000000-0000-0000-0000-0000000000e1', '<your-auth-user-uuid>', 'admin');
+-- Tenancy model: one organization -> one portfolio; access is invite-only with
+-- approved-domain auto-join. To work with this demo data:
+--   1. Make yourself a platform admin (lets you call create_organization):
+--        insert into platform_admins (user_id) values ('<your-auth-user-uuid>');
+--   2. See the demo org through RLS, either by signing up with an @acme.com email
+--      (auto-joins via the approved domain below) or by adding yourself directly:
+--        insert into organization_members (org_id, user_id, role)
+--        values ('00000000-0000-0000-0000-0000000000e1', '<your-auth-user-uuid>', 'admin');
 
 insert into organizations (id, name, industry, primary_region) values
   ('00000000-0000-0000-0000-0000000000e1', 'Acme Corp', 'Technology', 'US West')
 on conflict (id) do nothing;
+
+-- Approved corporate domain: anyone signing up with @acme.com auto-joins Acme.
+insert into organization_domains (org_id, domain) values
+  ('00000000-0000-0000-0000-0000000000e1', 'acme.com')
+on conflict do nothing;
 
 insert into portfolios (id, org_id, name, notes) values
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000e1',

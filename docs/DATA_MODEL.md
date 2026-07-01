@@ -16,6 +16,12 @@ tenancy model below.
   up within a company later without a schema change.
 - **organization_invitations** — pending invites by email (`org_id`, `email`,
   `role`), consumed automatically when the invited person signs up.
+- **organization_domains** — approved corporate email domains (`org_id`,
+  `domain`, globally unique). A signup whose email domain matches auto-joins that
+  org with `organizations.default_member_role`. Public providers (gmail, outlook,
+  …) are rejected.
+- **platform_admins** — operator accounts allowed to provision organizations
+  (`create_organization`). Access is otherwise invite-only.
 
 Every data row (`properties`, `leases`, `occupancy_records`,
 `space_breakdowns`, `analysis_snapshots`) carries `org_id` for isolation, plus
@@ -64,11 +70,18 @@ enforce identical value sets.
 
 RLS restricts every row to the caller's organization via `is_org_member()`, and
 **writes** additionally require `has_org_write()` (admin/editor) — viewers are
-read-only. Member/invitation management is admin-only and goes through
-SECURITY DEFINER RPCs (see `0003_tenancy.sql`). A direct browser call with the
-anon key therefore cannot cross an org boundary or exceed the user's role. Edge
-Functions run under the caller's JWT for DB access (RLS applies); only Storage
-uploads for PDF export use the service role.
+read-only. Org provisioning is platform-admin-only; member/invitation/domain
+management is org-admin-only; all go through SECURITY DEFINER RPCs (see
+`0003_tenancy.sql`, `0006_access.sql`). A direct browser call with the anon key
+therefore cannot cross an org boundary or exceed the user's role. Edge Functions
+run under the caller's JWT for DB access (RLS applies); only Storage uploads for
+PDF export use the service role.
+
+**Access flow:** platform admin provisions an org + approved domain + first admin
+→ org admins approve further domains and invite users → anyone with an
+approved-domain email (Google/Microsoft/manual) auto-joins on signup; others need
+an explicit invite. Verified end-to-end on Postgres 16 (isolation, role
+enforcement, domain auto-join, public-domain rejection, last-admin guard).
 
 See `docs/INTEGRATION.md` for the RPC/read contract and `docs/LOVABLE_BUILD.md`
 for the intake workflow.

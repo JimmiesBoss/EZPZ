@@ -13,6 +13,8 @@ their role automatically.
 **Tenancy recap:** an **organization** is the tenant and owns exactly **one
 portfolio**. A user belongs to an org with a role (`admin`/`editor`/`viewer`);
 everyone defaults to admin today. Users only ever see their own org's data.
+Access is **invite-only**: a **platform admin** provisions orgs; users then join
+by an **approved email domain** (Google/Microsoft/manual all work) or an invite.
 
 Enum values (for dropdowns) live in `engine/types.ts` and are enforced by the DB.
 
@@ -22,41 +24,54 @@ Enum values (for dropdowns) live in `engine/types.ts` and are enforced by the DB
 
 The happy path a new customer walks through:
 
-1. **Sign up / sign in** (Supabase Auth).
-2. **Resolve workspace.** Query `my_workspaces`. If empty → **onboarding**
-   (create organization). If present → straight to the dashboard.
-3. **Company profile** — name, industry, region (captured at org creation, editable later).
+1. **Sign in** (Supabase Auth — Google, Microsoft, or email). Invited /
+   approved-domain users are auto-joined to their org on first sign-in.
+2. **Resolve workspace.** Query `my_workspaces`. If present → dashboard. If empty
+   → "no access yet, ask your admin for an invite" (normal users do **not** create
+   orgs). Platform admins see the operator console (Screen 0) instead.
+3. **Company profile** — industry, region, notes (editable by admins/editors).
 4. **Portfolio data** — add properties → leases → occupancy → space mix, by
    manual form or CSV upload.
 5. **Run analysis** and view the dashboard.
-6. **Invite teammates** and assign roles (admin only).
+6. **Manage domains & teammates** and assign roles (admin only).
 
 Screens below follow this order.
+
+## Screen 0 — Operator console (platform admins only)
+
+Show only when `supabase.rpc('is_platform_admin')` returns true. Lets the
+operator provision organizations.
+
+```ts
+const { data } = await supabase.rpc('create_organization', {
+  org_name, primary_domain,      // corporate domain; public providers rejected
+  admin_email,                   // designated first org admin
+  portfolio_name, industry, primary_region,
+});   // -> { org_id, portfolio_id }
+```
 
 ## Screen 1 — Auth
 
 Standard Supabase email/password (or magic link). Nothing custom. Invited users
 are auto-joined to their org on first sign-in (a DB trigger consumes the invite).
 
-## Screen 2 — Onboarding / workspace
+## Screen 2 — Workspace resolution
 
 ```ts
-// Does this user already have a workspace?
 const { data: workspaces } = await supabase.from('my_workspaces').select('*');
 
 if (workspaces.length === 0) {
-  // First run: create the organization + its single portfolio (I become admin)
-  const { data } = await supabase.rpc('create_organization', {
-    org_name: name, portfolio_name: `${name} Portfolio`,
-    industry, primary_region,
-  });                                   // -> [{ org_id, portfolio_id }]
+  // No org yet. Normal users see "you don't have access yet — ask your
+  // administrator for an invite." Do NOT offer self-serve org creation.
+  // (Platform admins are routed to Screen 0 instead.)
+} else {
+  const ws = workspaces[0];  // { org_id, org_name, portfolio_id, portfolio_name, my_role, ... }
+  // ws.org_id / ws.portfolio_id drive every screen below.
 }
-// Re-query my_workspaces and store the single workspace in app state:
-//   ws = { org_id, org_name, portfolio_id, portfolio_name, my_role, industry, primary_region }
 ```
 
-`ws.org_id` and `ws.portfolio_id` are used by every screen below. Gate write
-actions on `ws.my_role !== 'viewer'`.
+Gate write actions on `ws.my_role !== 'viewer'`; show admin-only UI when
+`ws.my_role === 'admin'`.
 
 ## Screen 3 — Company profile
 
@@ -168,16 +183,21 @@ const { data } = await supabase.functions.invoke('export-pdf', {
 window.open(data.pdf_url);   // signed URL, valid for REPORT_LINK_TTL_SECONDS
 ```
 
-## Screen 7 — Team management (admin only)
+## Screen 7 — Team & domains (admin only)
 
 Show only when `ws.my_role === 'admin'`.
 
 ```ts
+// Approved domains — anyone signing up with one of these auto-joins the org
+const { data: domains } = await supabase.from('organization_domains').select('*').eq('org_id', ws.org_id);
+await supabase.rpc('add_org_domain',    { target_org: ws.org_id, d: 'acme.com' });   // public providers rejected
+await supabase.rpc('remove_org_domain', { target_org: ws.org_id, d: 'acme.com' });
+
 // Roster + pending invites
 const { data: members } = await supabase.from('organization_members').select('*').eq('org_id', ws.org_id);
 const { data: invites } = await supabase.from('organization_invitations').select('*').eq('org_id', ws.org_id);
 
-// Invite a teammate (creates the user's access now if they exist, else a pending invite)
+// Invite a teammate (adds access now if they exist, else a pending invite)
 await supabase.rpc('invite_member', { target_org: ws.org_id, member_email, member_role });
 
 // Change / remove

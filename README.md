@@ -74,8 +74,9 @@ supabase functions deploy analyze import-csv export-pdf
 ```
 
 The migrations create everything the backend needs: the organization/portfolio
-schema, RLS, the tenancy + user-admin RPCs (`create_organization`,
-`invite_member`, …), the signup trigger, and the private `reports` storage
+schema, role-based RLS, invite-only access with approved-domain auto-join, the
+provisioning + user-admin RPCs (`create_organization`, `invite_member`,
+`add_org_domain`, …), the signup trigger, and the private `reports` storage
 bucket. Full step-by-step (link, secrets, first-org bootstrap, smoke test) is in
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). To build the UI in Lovable, hand it
 [`docs/LOVABLE_BUILD.md`](docs/LOVABLE_BUILD.md); the call-by-call contract is in
@@ -96,10 +97,11 @@ needed. See `docs/INTEGRATION.md` for the mapping.
 ## Scope
 
 MVP only, per the brief: office properties, snapshot (not continuous) analysis,
-many organizations each with one portfolio and hard data isolation, role-based
-access within an org, manual + CSV entry, embedded IFMA/CoStar benchmarks. Out of
-scope (Phase 2+): scenario modeling, Yardi/CoStar API integration, OCR, audit
-trails, non-office property types.
+many organizations each with one portfolio and hard data isolation, invite-only
+access with approved-domain auto-join and role-based permissions within an org,
+manual + CSV entry, embedded IFMA/CoStar benchmarks. Out of scope (Phase 2+):
+scenario modeling, Yardi/CoStar API integration, OCR, audit trails, non-office
+property types.
 
 > **Note on cost benchmarking:** each property reports **both** `cost_per_sf` and
 > `cost_per_sf_per_employee`. The §4.2 benchmark table is on a cost-per-SF scale,
