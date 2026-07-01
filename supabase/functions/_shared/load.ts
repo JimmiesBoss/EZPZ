@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PortfolioInput } from '../../../engine/domain.ts';
 
 export interface LoadedPortfolio {
-  clientId: string;
+  orgId: string;
   input: PortfolioInput;
 }
 
@@ -15,7 +15,7 @@ export async function loadPortfolioInput(
 ): Promise<LoadedPortfolio | null> {
   const { data: portfolio, error: pErr } = await supabase
     .from('portfolios')
-    .select('id, name, client_id')
+    .select('id, name, org_id')
     .eq('id', portfolioId)
     .maybeSingle();
   if (pErr) throw pErr;
@@ -87,7 +87,7 @@ export async function loadPortfolioInput(
     })),
   };
 
-  return { clientId: portfolio.client_id, input };
+  return { orgId: portfolio.org_id, input };
 }
 
 function groupBy<T extends Record<string, any>>(

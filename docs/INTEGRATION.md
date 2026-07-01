@@ -5,34 +5,70 @@ How the Lovable front end talks to this backend. Two channels:
 1. **Direct data API (Supabase)** for CRUD.
 2. **Edge Functions** for the three heavy operations.
 
+## 0. Tenancy in one paragraph
+
+An **organization** is the tenant and owns exactly **one portfolio**. A user
+belongs to an organization with a **role** (`admin`/`editor`/`viewer`) and only
+ever sees their own org's data. On first login a user either creates an org
+(becoming its admin) or is auto-joined to one they were invited to. Resolve the
+current workspace (org + portfolio + role) with:
+
+```ts
+const { data: workspaces } = await supabase.from('my_workspaces').select('*');
+const ws = workspaces[0];   // { org_id, org_name, portfolio_id, portfolio_name, my_role, ... }
+```
+
 ## 1. CRUD via Supabase (no custom code)
 
 The brief's portfolio/property/lease/occupancy/space CRUD endpoints (§6) are
 served by Supabase's auto-generated PostgREST API. In Lovable, use the Supabase
 JS client with the **anon key** and the signed-in user's session — RLS enforces
-client isolation automatically.
+org isolation and role permissions automatically. Every insert sets `org_id`
+(from `ws.org_id`).
 
 ```ts
-// Create a portfolio
-await supabase.from('portfolios').insert({ client_id, name: 'HQ Portfolio' });
-
-// List properties for a portfolio (RLS-scoped to the user's client)
+// List properties for the portfolio (RLS-scoped to the user's org)
 const { data } = await supabase
   .from('properties')
   .select('*, leases(*), occupancy_records(*), space_breakdowns(*)')
-  .eq('portfolio_id', portfolioId);
+  .eq('portfolio_id', ws.portfolio_id);
+
+// Add a property
+await supabase.from('properties').insert({
+  org_id: ws.org_id, portfolio_id: ws.portfolio_id,
+  name, address, city, state, zip, property_type, total_rentable_sf, headcount_on_site,
+});
 ```
 
 Brief endpoint → Supabase equivalent:
 
 | Brief (§6) | Supabase |
 |---|---|
-| `POST /api/portfolios` | `supabase.from('portfolios').insert(...)` |
-| `GET /api/portfolios/{id}` | `.from('portfolios').select().eq('id', id)` |
-| `POST /api/portfolios/{id}/properties` | `.from('properties').insert(...)` |
-| `PUT/DELETE .../properties/{id}` | `.update(...)` / `.delete()` |
-| lease / occupancy / space CRUD | same pattern on the matching table |
+| `POST /api/portfolios/{id}/properties` | `.from('properties').insert({ org_id, portfolio_id, ... })` |
+| `PUT/DELETE .../properties/{id}` | `.update(...)` / `.delete()` (RLS blocks viewers) |
+| lease / occupancy / space CRUD | same pattern on the matching table (set `org_id`) |
 | `GET .../snapshots` / `snapshots/{id}` | `.from('analysis_snapshots').select(...)` |
+
+## 1b. Onboarding & user administration (RPCs)
+
+```ts
+// First-run: create my org + its portfolio (I become admin)
+const { data } = await supabase.rpc('create_organization', {
+  org_name: 'Acme Corp', portfolio_name: 'Acme US Portfolio',
+  industry: 'Technology', primary_region: 'US West',
+});           // -> [{ org_id, portfolio_id }]
+
+// Invite / add a teammate with a role (admin only) -> 'added' | 'invited'
+await supabase.rpc('invite_member', { target_org: ws.org_id, member_email: 'x@acme.com', member_role: 'editor' });
+
+// Change or remove a member (admin only)
+await supabase.rpc('set_member_role', { target_org: ws.org_id, target_user: userId, new_role: 'viewer' });
+await supabase.rpc('remove_member',  { target_org: ws.org_id, target_user: userId });
+
+// Roster + pending invites (admins see invites)
+const { data: members } = await supabase.from('organization_members').select('*').eq('org_id', ws.org_id);
+const { data: invites } = await supabase.from('organization_invitations').select('*').eq('org_id', ws.org_id);
+```
 
 ## 2. Edge Functions
 
@@ -95,7 +131,6 @@ Requires a private Storage bucket named `reports` (configurable via
 - Edge Functions read `SUPABASE_URL`, `SUPABASE_ANON_KEY` (provided by the
   platform) and `SUPABASE_SERVICE_ROLE_KEY` (used only for the PDF Storage
   upload). Set them as function secrets; see `.env.example`.
-- A user only sees a client's data if they have a `client_members` row for it.
-  New users bootstrap with `supabase.rpc('create_client', { client_name })`
-  (they become owner) and owners add teammates with
-  `supabase.rpc('add_client_member', ...)`. See `DEPLOYMENT.md` §5.
+- A user only sees an org's data if they have an `organization_members` row for
+  it. New users bootstrap with `supabase.rpc('create_organization', ...)` (they
+  become admin); admins add teammates with `invite_member`. See `DEPLOYMENT.md` §5.

@@ -22,8 +22,11 @@ supabase link --project-ref <your-project-ref>
 supabase db push          # runs supabase/migrations/*.sql in order
 ```
 
-This creates the tables, row-level-security policies, the `create_client` /
-`add_client_member` RPCs, and the private `reports` storage bucket.
+This creates the tables (organizations, members, invitations, one-portfolio-per-org,
+and the portfolio data tables), the row-level-security policies, the tenancy /
+user-admin RPCs (`create_organization`, `invite_member`, `set_member_role`,
+`remove_member`), the signup trigger that auto-joins invited users, and the
+private `reports` storage bucket.
 
 Optional demo data (safe to skip in production):
 
@@ -55,32 +58,31 @@ supabase functions deploy export-pdf
 They are JWT-verified by default (`config.toml` → `[functions.*] verify_jwt = true`),
 so callers must pass a signed-in user's access token.
 
-## 5. First-run bootstrap (create a client)
+## 5. First-run bootstrap (create an organization)
 
-RLS shows a user only the clients they belong to. A new user creates their first
-client (and becomes its owner) via the RPC:
-
-```sql
-select create_client('Acme Corp');
-```
-
-or from the frontend:
+RLS shows a user only the org they belong to. A new user creates their
+organization (and its single portfolio, becoming admin) via the RPC — normally
+from the onboarding screen:
 
 ```ts
-const { data: client } = await supabase.rpc('create_client', { client_name: 'Acme Corp' });
+const { data } = await supabase.rpc('create_organization', {
+  org_name: 'Acme Corp', portfolio_name: 'Acme US Portfolio',
+  industry: 'Technology', primary_region: 'US West',
+});   // -> [{ org_id, portfolio_id }]
 ```
 
-To let a teammate in, an owner calls:
+Admins add teammates (existing users are added immediately; new emails get a
+pending invite auto-consumed at signup):
 
 ```ts
-await supabase.rpc('add_client_member', { target_client: clientId, target_user: userId, member_role: 'member' });
+await supabase.rpc('invite_member', { target_org: orgId, member_email: 'teammate@acme.com', member_role: 'editor' });
 ```
 
-If you loaded the seed data, grant yourself access to the demo client:
+If you loaded the seed data, grant yourself access to the demo organization:
 
 ```sql
-insert into client_members (client_id, user_id)
-values ('00000000-0000-0000-0000-0000000000c1', '<your-auth-user-uuid>');
+insert into organization_members (org_id, user_id, role)
+values ('00000000-0000-0000-0000-0000000000e1', '<your-auth-user-uuid>', 'admin');
 ```
 
 ## 6. Point Lovable at the project

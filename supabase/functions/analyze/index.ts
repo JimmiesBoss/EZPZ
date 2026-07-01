@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
   const { data: snapshot, error } = await supabase
     .from('analysis_snapshots')
     .insert({
-      client_id: loaded.clientId,
+      org_id: loaded.orgId,
       portfolio_id,
       snapshot_date: snapshotDate,
       data_as_of_date: data_as_of_date ?? null,

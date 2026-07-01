@@ -34,10 +34,10 @@ Deno.serve(async (req: Request) => {
 
   const supabase = userClient(req);
 
-  // Resolve the portfolio (RLS restricts this to the caller's client).
+  // Resolve the portfolio (RLS restricts this to the caller's organization).
   const { data: portfolio, error: pErr } = await supabase
     .from('portfolios')
-    .select('id, client_id')
+    .select('id, org_id')
     .eq('id', portfolio_id)
     .maybeSingle();
   if (pErr) return json({ error: 'load_failed', detail: pErr.message }, 500);
@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
     return json(validation, 422);
   }
 
-  const clientId = portfolio.client_id;
+  const orgId = portfolio.org_id;
 
   // Map property_name -> id for child templates.
   let nameToId = new Map<string, string>();
@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
     if (template_type === 'properties') {
       const d = data as Record<string, unknown>;
       inserts.push({
-        client_id: clientId,
+        org_id: orgId,
         portfolio_id,
         name: d.property_name,
         address: d.address,
@@ -93,9 +93,9 @@ Deno.serve(async (req: Request) => {
       }
       const d = data as Record<string, unknown>;
       if (template_type === 'leases') {
-        inserts.push({ client_id: clientId, property_id: propertyId, ...toLeaseRow(d) });
+        inserts.push({ org_id: orgId, property_id: propertyId, ...toLeaseRow(d) });
       } else {
-        inserts.push({ client_id: clientId, property_id: propertyId, ...toOccupancyRow(d) });
+        inserts.push({ org_id: orgId, property_id: propertyId, ...toOccupancyRow(d) });
       }
     }
   }

@@ -1,18 +1,31 @@
 # Data Model
 
-Postgres schema in `supabase/migrations/0001_init.sql`; row-level security in
-`0002_rls.sql`. Mirrors brief §3, with `client_id` on every row for hard
-multi-tenant isolation (brief §9).
+Postgres schema in `supabase/migrations/`. Mirrors brief §3, adapted to the
+tenancy model below.
 
-## Tables
+## Tenancy: organization → one portfolio
 
-- **clients** — tenant. `id`, `name`.
-- **client_members** — links a Supabase auth user to a client (`client_id`,
-  `user_id`, `role`). Drives RLS.
-- **portfolios** — `client_id`, `name`, `notes`.
+- **organizations** — the tenant: one company's private environment. Carries a
+  light profile captured during intake (`name`, `industry`, `size_category`,
+  `primary_region`, `notes`).
+- **portfolios** — **exactly one per organization** (`org_id` is `UNIQUE`).
+  Auto-created when the organization is created. Holds `name`, `notes`.
+- **organization_members** — a user's role in an organization
+  (`org_id`, `user_id`, `role`). `role ∈ {admin, editor, viewer}`; new members
+  default to `admin`. This is the user structure that lets permissions be divvied
+  up within a company later without a schema change.
+- **organization_invitations** — pending invites by email (`org_id`, `email`,
+  `role`), consumed automatically when the invited person signs up.
+
+Every data row (`properties`, `leases`, `occupancy_records`,
+`space_breakdowns`, `analysis_snapshots`) carries `org_id` for isolation, plus
+its parent key (`portfolio_id` / `property_id`).
+
+## Portfolio data tables
+
 - **properties** — office building. `portfolio_id`, address fields,
   `property_type` (`owned|leased`), `total_rentable_sf`, `headcount_on_site`,
-  optional `total_usable_sf`, `market_tier` (`tier1|tier2|tier3`), etc.
+  optional `total_usable_sf`, `market_tier` (`tier1|tier2|tier3`).
 - **leases** — `property_id`, term dates, `lease_type`
   (`gross|triple_net|modified_gross`), `annual_rent`, `cams_annual`,
   `other_annual_costs`, break-clause fields.
@@ -21,41 +34,41 @@ multi-tenant isolation (brief §9).
 - **space_breakdowns** — `property_id`, `space_type`, `allocated_sf`,
   `allocated_headcount`, optional `utilization_rate_percent`.
 - **analysis_snapshots** — immutable result of one analysis run. `portfolio_id`,
-  `snapshot_date`, `data_as_of_date`, `analysis_results` (jsonb — the full
-  engine output, brief §3.2), `data_completeness_percent`.
+  `snapshot_date`, `data_as_of_date`, `analysis_results` (jsonb — the full engine
+  output, brief §3.2), `data_completeness_percent`.
 
 ## Enums
 
-Stored as `text` with `CHECK` constraints instead of Postgres `ENUM`, so the
-allowed values stay in lock-step with the engine's enum tuples in
-`engine/types.ts` without enum-migration friction. The same tuples back the Zod
-validation in `engine/validation.ts`, so the database, API validation, and CSV
-import all enforce identical value sets.
+Stored as `text` with `CHECK` constraints instead of Postgres `ENUM`, so allowed
+values stay in lock-step with the engine's enum tuples in `engine/types.ts`
+without enum-migration friction. The same tuples back the Zod validation in
+`engine/validation.ts`, so the database, API validation, and CSV import all
+enforce identical value sets.
 
 ## Constraints (brief §7)
-
-Enforced in-database as a backstop to the Zod layer:
 
 - `total_rentable_sf > 0`, `headcount_on_site >= 0`,
   `occupancy_rate_percent between 0 and 100`.
 - `lease_start_date < lease_end_date`; `break_date` within the lease term.
 - `occupied_desks <= total_desks_available`; `total_desks_available > 0`.
 - `measurement_date <= current_date` (no future occupancy).
-- `ON DELETE CASCADE` from portfolio → property → lease/occupancy/space, so
-  removing a portfolio cleans up its children. (The brief's "block property
-  delete while children exist" rule, §7, is an app-layer choice; the schema
-  cascades by default — change to `ON DELETE RESTRICT` if you prefer the block.)
+- `portfolios.org_id UNIQUE` — enforces one portfolio per organization.
+- `ON DELETE CASCADE` from org → portfolio → property → lease/occupancy/space.
 
 ## Indexes (brief §8)
 
-`client_id` and the parent foreign key are indexed on every child table
-(`portfolio_id` on properties, `property_id` on leases/occupancy/space,
-`portfolio_id` on snapshots) to keep client-scoped and drill-down queries fast at
-the MVP volume targets (25 clients, ≤250 properties, ≤2,500 leases).
+`org_id` and the parent foreign key are indexed on every child table, plus
+`organization_members(user_id)` for fast "which orgs am I in" lookups.
 
-## Isolation (brief §9)
+## Isolation & roles (brief §9)
 
-RLS policies restrict every row to clients the current user belongs to via
-`is_client_member()`. A direct browser call with the anon key therefore cannot
-read across clients. Edge Functions run under the caller's JWT for DB access
-(RLS applies); only Storage uploads for PDF export use the service role.
+RLS restricts every row to the caller's organization via `is_org_member()`, and
+**writes** additionally require `has_org_write()` (admin/editor) — viewers are
+read-only. Member/invitation management is admin-only and goes through
+SECURITY DEFINER RPCs (see `0003_tenancy.sql`). A direct browser call with the
+anon key therefore cannot cross an org boundary or exceed the user's role. Edge
+Functions run under the caller's JWT for DB access (RLS applies); only Storage
+uploads for PDF export use the service role.
+
+See `docs/INTEGRATION.md` for the RPC/read contract and `docs/LOVABLE_BUILD.md`
+for the intake workflow.

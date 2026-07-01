@@ -33,7 +33,7 @@ Lovable (React UI)
 - **`engine/`** — the pure, dependency-light TypeScript calculation engine
   (no I/O). Fully unit-tested with Vitest. Runs unchanged in Node and Deno.
 - **`supabase/migrations/`** — Postgres schema + row-level security for
-  multi-tenant client isolation.
+  organization isolation and role-based access (one org = one portfolio).
 - **`supabase/functions/`** — Deno Edge Functions that wrap the engine:
   `analyze`, `import-csv`, `export-pdf`.
 - **`supabase/seed.sql` / `supabase/templates/`** — demo data and CSV upload
@@ -73,9 +73,10 @@ supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<key>
 supabase functions deploy analyze import-csv export-pdf
 ```
 
-The migrations create everything the backend needs, including the private
-`reports` storage bucket and the `create_client` / `add_client_member` tenancy
-RPCs. Full step-by-step (link, secrets, first-client bootstrap, smoke test) is in
+The migrations create everything the backend needs: the organization/portfolio
+schema, RLS, the tenancy + user-admin RPCs (`create_organization`,
+`invite_member`, …), the signup trigger, and the private `reports` storage
+bucket. Full step-by-step (link, secrets, first-org bootstrap, smoke test) is in
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). To build the UI in Lovable, hand it
 [`docs/LOVABLE_BUILD.md`](docs/LOVABLE_BUILD.md); the call-by-call contract is in
 [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
@@ -95,9 +96,10 @@ needed. See `docs/INTEGRATION.md` for the mapping.
 ## Scope
 
 MVP only, per the brief: office properties, snapshot (not continuous) analysis,
-25 clients with hard data isolation, manual + CSV entry, embedded IFMA/CoStar
-benchmarks. Out of scope (Phase 2+): scenario modeling, Yardi/CoStar API
-integration, OCR, audit trails, non-office property types.
+many organizations each with one portfolio and hard data isolation, role-based
+access within an org, manual + CSV entry, embedded IFMA/CoStar benchmarks. Out of
+scope (Phase 2+): scenario modeling, Yardi/CoStar API integration, OCR, audit
+trails, non-office property types.
 
 > **Note on cost benchmarking:** each property reports **both** `cost_per_sf` and
 > `cost_per_sf_per_employee`. The §4.2 benchmark table is on a cost-per-SF scale,
