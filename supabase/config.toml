@@ -124,6 +124,12 @@ file_size_limit = "50MiB"
 # allowed_mime_types = ["image/png", "image/jpeg"]
 # objects_path = "./images"
 
+# Private bucket for generated PDF reports (export-pdf function).
+[storage.buckets.reports]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["application/pdf"]
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = true
@@ -412,3 +418,16 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# --- Profolio Edge Functions -------------------------------------------------
+# All three run under the caller's JWT (RLS applies for DB access), so keep
+# verify_jwt on. export-pdf additionally uses the service-role key for the
+# Storage upload only.
+[functions.analyze]
+verify_jwt = true
+
+[functions.import-csv]
+verify_jwt = true
+
+[functions.export-pdf]
+verify_jwt = true

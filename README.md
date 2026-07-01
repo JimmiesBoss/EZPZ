@@ -38,8 +38,9 @@ Lovable (React UI)
   `analyze`, `import-csv`, `export-pdf`.
 - **`supabase/seed.sql` / `supabase/templates/`** — demo data and CSV upload
   templates.
-- **`docs/`** — data model, calculation reference, and Lovable/Supabase
-  integration guide.
+- **`docs/`** — data model, calculation reference, deployment runbook
+  (`DEPLOYMENT.md`), Lovable build spec (`LOVABLE_BUILD.md`), and the
+  Supabase integration guide.
 
 ## What the engine does (brief §4–5)
 
@@ -66,20 +67,18 @@ npm run typecheck
 ## Deploying to Supabase
 
 ```bash
-# 1. Apply schema + RLS and load demo data
-supabase db reset            # runs migrations/*.sql then seed.sql
-
-# 2. Serve / deploy the Edge Functions
-supabase functions serve --env-file supabase/.env   # local
+supabase link --project-ref <ref>
+supabase db push             # schema + RLS + tenancy RPCs + reports bucket
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<key>
 supabase functions deploy analyze import-csv export-pdf
-
-# 3. Create the reports storage bucket (private) for PDF export
-#    (Dashboard → Storage → New bucket "reports", or via SQL/CLI)
 ```
 
-Copy `.env.example` → `supabase/.env` and fill in the Supabase URL/keys. See
-[`docs/INTEGRATION.md`](docs/INTEGRATION.md) for the exact request/response
-contract Lovable uses to call each function.
+The migrations create everything the backend needs, including the private
+`reports` storage bucket and the `create_client` / `add_client_member` tenancy
+RPCs. Full step-by-step (link, secrets, first-client bootstrap, smoke test) is in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). To build the UI in Lovable, hand it
+[`docs/LOVABLE_BUILD.md`](docs/LOVABLE_BUILD.md); the call-by-call contract is in
+[`docs/INTEGRATION.md`](docs/INTEGRATION.md).
 
 ## Edge Function endpoints
 

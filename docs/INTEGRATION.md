@@ -96,3 +96,6 @@ Requires a private Storage bucket named `reports` (configurable via
   platform) and `SUPABASE_SERVICE_ROLE_KEY` (used only for the PDF Storage
   upload). Set them as function secrets; see `.env.example`.
 - A user only sees a client's data if they have a `client_members` row for it.
+  New users bootstrap with `supabase.rpc('create_client', { client_name })`
+  (they become owner) and owners add teammates with
+  `supabase.rpc('add_client_member', ...)`. See `DEPLOYMENT.md` §5.
