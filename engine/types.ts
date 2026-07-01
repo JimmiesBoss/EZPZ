@@ -98,7 +98,9 @@ export interface PropertyLevelMetrics {
   cost_per_sf_per_employee: number;
   occupancy_rate: number;
   utilization_rate: number;
-  benchmark_target_cost_per_sf_per_employee: number;
+  /** Tier benchmark target, on a cost-per-SF scale (brief §4.2). */
+  benchmark_target_cost_per_sf: number;
+  /** Variance of cost_per_sf vs. the tier benchmark target, as a percent. */
   variance_from_benchmark: number;
   red_flag_status: RedFlagStatus;
   drivers: {

@@ -13,7 +13,7 @@ ambiguity in the brief.
 | Cost per SF per employee | `(annual_cost / total_rentable_sf) / headcount_on_site` | `metrics.computeProperty` |
 | Utilization rate | `occupied_desks / total_desks_available × 100`, degrading to headcount/desks, then to `occupancy_rate_percent` | `metrics.utilizationRate` |
 | Occupancy rate | measured rate, else `headcount / total_desks × 100`, else property `occupancy_rate_percent` | `metrics.occupancyRate` |
-| Benchmark variance | `((actual_cost_per_sf_per_employee − benchmark_target) / benchmark_target) × 100` | `metrics.computeProperty` |
+| Benchmark variance | `((cost_per_sf − benchmark_target) / benchmark_target) × 100` (see scale note below) | `metrics.computeProperty` |
 | Portfolio averages | simple mean of per-property rates (brief §4.1) | `metrics.computePortfolioMetrics` |
 | Portfolio benchmark variance | actual vs. **headcount-weighted** tier target | `metrics.computePortfolioMetrics` |
 
@@ -32,20 +32,31 @@ Embedded in `engine/benchmarks.ts` (IFMA/CoStar baseline):
 - **Meeting-room utilization:** healthy 40–60%, flag < 30% or > 80%.
 - **Support space:** flag when combined support types exceed 7% of allocated SF.
 
-### ⚠️ Known ambiguity: "cost per SF per employee"
+### Resolved: two cost scales, benchmark applied to cost-per-SF
 
 The brief defines the metric (§4.1) as `(cost / SF) / headcount` — dollars per SF
 *per employee* — but the benchmark table (§4.2) lists `$12–$35 per SF per
-employee`, which is the scale of **cost per SF** (rent PSF), not cost-per-SF
-divided by headcount. For any real portfolio the two are orders of magnitude
-apart, so the computed variance is a large negative number.
+employee`, which is on the scale of **cost per SF**, not cost-per-SF divided by
+headcount. Example (HQ Tower: $2.4M cost, 50,000 SF, 200 people):
 
-The engine implements **both exactly as the brief specifies** (so results match a
-manual calculation of the written formulas — acceptance criterion §12.2). If the
-intended comparison is actually *cost per SF* vs. the tier table, it is a
-one-line change in `metrics.computeProperty`: compare `costPerSf` (not
-`costPerSfPerEmployee`) to `benchmarkTarget`. Flagged here for the project owner
-to confirm before this drives client-facing recommendations.
+- cost per SF = `2,400,000 / 50,000` = **$48/SF**
+- cost per SF per employee = `48 / 200` = **$0.24/SF/employee**
+
+The tier-1 target ($30) matches the $48 scale, not $0.24. Comparing $0.24 to $30
+made variance ≈ −99% for every property, so the cost red-flags never fired.
+
+**Resolution (confirmed with the project owner):** report **both** cost metrics
+on every property (`cost_per_sf` and `cost_per_sf_per_employee`), and apply the
+benchmark comparison to `cost_per_sf`. So:
+
+- `benchmark_target_cost_per_sf` — the tier target ($30/$21.50/$15).
+- `variance_from_benchmark` — `((cost_per_sf − target) / target) × 100`.
+- Red-flag items #2 and #10 and the portfolio benchmark variance all key off
+  `cost_per_sf`.
+
+`cost_per_sf_per_employee` remains reported per location as an informational
+efficiency metric (useful for comparing space-cost intensity across sites of
+different headcounts), it just isn't the value benchmarked.
 
 ## Red-flag checklist (brief §4.3)
 

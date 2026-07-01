@@ -109,10 +109,13 @@ export function computeProperty(property: PropertyInput): PropertyComputation {
   const costPerSf = sf > 0 ? annualCost / sf : 0;
   const costPerSfPerEmployee = sf > 0 && headcount > 0 ? costPerSf / headcount : 0;
 
+  // The §4.2 benchmark table is on a cost-per-SF scale, so variance compares
+  // cost_per_sf (not cost_per_sf_per_employee) against it. Both cost metrics are
+  // still reported per property. See docs/CALCULATIONS.md.
   const benchmarkTarget = costBenchmarkTarget(property.marketTier);
   const varianceFromBenchmark =
-    benchmarkTarget > 0 && costPerSfPerEmployee > 0
-      ? ((costPerSfPerEmployee - benchmarkTarget) / benchmarkTarget) * 100
+    benchmarkTarget > 0 && costPerSf > 0
+      ? ((costPerSf - benchmarkTarget) / benchmarkTarget) * 100
       : 0;
 
   const util = utilizationRate(property);
@@ -132,7 +135,7 @@ export function computeProperty(property: PropertyInput): PropertyComputation {
     cost_per_sf_per_employee: round(costPerSfPerEmployee, 4),
     occupancy_rate: round(occ ?? 0),
     utilization_rate: round(util ?? 0),
-    benchmark_target_cost_per_sf_per_employee: benchmarkTarget,
+    benchmark_target_cost_per_sf: benchmarkTarget,
     variance_from_benchmark: round(varianceFromBenchmark),
     red_flag_status: classify(util, hasCostData),
     drivers: {
@@ -188,19 +191,18 @@ export function computePortfolioMetrics(
       : 0;
 
   // Headcount-weighted benchmark target so mixed-tier portfolios compare fairly.
+  // Compared on a cost-per-SF scale (matches the §4.2 benchmark table).
   const weightedTarget =
     totalHeadcount > 0
       ? computations.reduce(
           (s, c) =>
-            s +
-            c.metrics.benchmark_target_cost_per_sf_per_employee *
-              c.input.headcountOnSite,
+            s + c.metrics.benchmark_target_cost_per_sf * c.input.headcountOnSite,
           0,
         ) / totalHeadcount
       : 0;
   const benchmarkVariance =
-    weightedTarget > 0 && costPerSfPerEmployee > 0
-      ? ((costPerSfPerEmployee - weightedTarget) / weightedTarget) * 100
+    weightedTarget > 0 && costPerSfTotal > 0
+      ? ((costPerSfTotal - weightedTarget) / weightedTarget) * 100
       : 0;
 
   return {

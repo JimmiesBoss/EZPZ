@@ -25,7 +25,7 @@ describe('computeProperty (brief §4.1)', () => {
     expect(c.metrics.cost_per_sf).toBe(25);
   });
 
-  it('computes cost per SF per employee = (cost/sf)/headcount', () => {
+  it('reports cost per SF per employee = (cost/sf)/headcount per location', () => {
     expect(c.metrics.cost_per_sf_per_employee).toBeCloseTo(0.5, 5);
   });
 
@@ -33,9 +33,10 @@ describe('computeProperty (brief §4.1)', () => {
     expect(c.metrics.utilization_rate).toBe(80);
   });
 
-  it('computes benchmark variance against the tier-1 target', () => {
-    // ((0.5 - 30) / 30) * 100
-    expect(c.metrics.variance_from_benchmark).toBeCloseTo(-98.33, 1);
+  it('benchmarks cost per SF against the tier-1 target', () => {
+    expect(c.metrics.benchmark_target_cost_per_sf).toBe(30);
+    // ((25 - 30) / 30) * 100
+    expect(c.metrics.variance_from_benchmark).toBeCloseTo(-16.67, 1);
   });
 
   it('classifies an 80% utilized property as acceptable', () => {

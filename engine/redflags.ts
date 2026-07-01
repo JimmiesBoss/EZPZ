@@ -339,11 +339,9 @@ export function buildRedFlagChecklist(
   // 10. Cost Variance — property costs >50% above benchmark (brief §4.3 #10).
   {
     const perProp = computations.map((c) => {
-      const target = c.metrics.benchmark_target_cost_per_sf_per_employee;
+      const target = c.metrics.benchmark_target_cost_per_sf;
       const ratio =
-        c.hasCostData && target > 0
-          ? c.metrics.cost_per_sf_per_employee / target
-          : null;
+        c.hasCostData && target > 0 ? c.metrics.cost_per_sf / target : null;
       const status = tiered(
         ratio,
         (v) => v > 1 + THRESHOLDS.costVariancePercent / 100,

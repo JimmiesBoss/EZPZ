@@ -100,8 +100,8 @@ MVP only, per the brief: office properties, snapshot (not continuous) analysis,
 benchmarks. Out of scope (Phase 2+): scenario modeling, Yardi/CoStar API
 integration, OCR, audit trails, non-office property types.
 
-> **Note on a benchmark definition:** the brief's *cost per SF per employee*
-> formula (§4.1) and its *cost per SF per employee* benchmark table (§4.2) are on
-> different numeric scales. The engine implements both exactly as written and
-> flags the resulting variance; see `docs/CALCULATIONS.md` for the detail and the
-> one-line change if the benchmark is meant to be *cost per SF*.
+> **Note on cost benchmarking:** each property reports **both** `cost_per_sf` and
+> `cost_per_sf_per_employee`. The §4.2 benchmark table is on a cost-per-SF scale,
+> so the benchmark variance and cost red-flags compare against `cost_per_sf`;
+> `cost_per_sf_per_employee` is reported as an informational efficiency metric.
+> See `docs/CALCULATIONS.md` for the worked example.
