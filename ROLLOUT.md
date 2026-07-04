@@ -109,6 +109,7 @@ Contents of `profolio-phase3-frontend-lovable.zip`:
 
 ```
 LOVABLE_BUILD.md                screen-by-screen spec + exact Supabase calls
+INTAKE_WIZARD.md                guided step-by-step manual-entry wizard (build this)
 INTEGRATION.md                  full request/response contract (CRUD + RPCs + functions)
 DATA_MODEL.md                   schema & access model reference
 CALCULATIONS.md                 what the engine computes (for tooltips/《why》 text)
@@ -122,7 +123,9 @@ templates/                      CSV upload templates (properties/leases/occupanc
 2. Feed Lovable the build spec. `LOVABLE_BUILD.md` is written to be pasted section
    by section as you build each screen — start with **Screen 0 (operator console)**
    and **Screen 2 (workspace resolution)**, then profile → data entry → dashboard →
-   PDF → team/domains. Attach `INTEGRATION.md` and the brief as context.
+   PDF → team/domains. For **manual data entry**, build the guided **Intake
+   Wizard** from `INTAKE_WIZARD.md` (the full step-by-step form spec your team
+   asked for). Attach `INTEGRATION.md` and the brief as context.
 3. In **Supabase → Authentication → Providers**, enable Google and/or Microsoft if
    you want SSO (optional; email works out of the box). Domain auto-join is
    provider-agnostic.

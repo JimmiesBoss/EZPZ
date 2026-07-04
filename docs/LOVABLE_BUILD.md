@@ -85,6 +85,12 @@ await supabase.from('organizations')
 
 ## Screen 4 — Portfolio data entry
 
+> For **manual entry**, build this as the guided **Intake Wizard** — the
+> definitive step-by-step spec (steps, fields, validation, microcopy, save/resume,
+> the space allocator, and the readiness panel) is in
+> [`INTAKE_WIZARD.md`](INTAKE_WIZARD.md). The quick reference below is the raw
+> CRUD the wizard (or a power-user table view) writes.
+
 Tabs for **Properties**, **Leases**, **Occupancy**, **Space mix**. Each is a
 table with an add/edit form; every insert sets `org_id: ws.org_id`. Validation
 mirrors `engine/validation.ts` (the DB enforces it too — surface returned errors).
