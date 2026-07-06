@@ -1,0 +1,2 @@
+property_name,lease_start_date,lease_end_date,lease_type,annual_rent,cams_annual,utilities_annual,parking_annual,property_tax_annual,insurance_annual,janitorial_annual,other_annual_costs,tenant_improvement_cost,tenant_improvement_allowance,furniture_ffe_cost,construction_buildout_cost,moving_cost,other_one_time_costs,has_break_clause,break_date,break_penalty_type,break_penalty_amount
+HQ Tower,2022-01-01,2031-01-01,gross,2000000,400000,180000,60000,0,45000,90000,0,1500000,900000,600000,1200000,150000,0,false,,none,0
