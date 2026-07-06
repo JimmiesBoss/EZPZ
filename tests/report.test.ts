@@ -7,13 +7,22 @@ describe('buildReport (brief §5.3)', () => {
   const results = analyzePortfolio(samplePortfolio(), { asOf: AS_OF });
   const opts = { portfolioName: 'Acme', snapshotDate: '2026-01-01', reportType: 'executive_summary' as const };
 
-  it('executive summary includes KPIs, opportunities and checklist', () => {
+  it('executive summary includes KPIs, all-in cost, standards, opportunities and checklist', () => {
     const report = buildReport(results, opts);
     const headings = report.sections.map((s) => s.heading);
     expect(headings).toContain('Portfolio KPIs');
+    expect(headings).toContain('Occupancy Cost — All-In');
+    expect(headings).toContain('Industry Standards (IFMA / BOMA / CoStar)');
     expect(headings).toContain('Ranked Opportunities');
     expect(headings).toContain('10-Point Red-Flag Checklist');
     expect(report.subtitle).toContain('Acme');
+  });
+
+  it('all-in cost section ends with the fully-loaded total', () => {
+    const report = buildReport(results, opts);
+    const cost = report.sections.find((s) => s.heading === 'Occupancy Cost — All-In')!;
+    expect(cost.lines.some((l) => l.startsWith('Fully-loaded annual cost:'))).toBe(true);
+    expect(cost.lines.some((l) => l.includes('Total operating:'))).toBe(true);
   });
 
   it('detailed report adds property and issue sections', () => {

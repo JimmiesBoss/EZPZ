@@ -29,14 +29,65 @@ function kpiSection(results: AnalysisResults): ReportSection {
     heading: 'Portfolio KPIs',
     lines: [
       `Total square footage: ${m.total_portfolio_sf.toLocaleString('en-US')} SF`,
-      `Total annual occupancy cost: ${money(m.total_portfolio_annual_cost)}`,
-      `Cost per SF (portfolio): ${money(m.cost_per_sf_total)}`,
+      `Total operating cost (annual): ${money(m.total_portfolio_annual_cost)}`,
+      `Operating cost per SF: ${money(m.cost_per_sf_total)}`,
       `Total headcount: ${m.total_headcount.toLocaleString('en-US')}`,
       `Average utilization: ${round(m.portfolio_average_utilization_rate)}%`,
       `Average occupancy: ${round(m.portfolio_average_occupancy_rate)}%`,
       `Variance vs. benchmark: ${round(m.benchmark_variance_percent)}%`,
       `Data completeness: ${round(results.data_completeness_percent)}%`,
     ],
+  };
+}
+
+/**
+ * All-in occupancy cost: every combined expense itemized, then the fully-loaded
+ * total. Reports lead with the full picture (dashboards lead with operating).
+ */
+function costSection(results: AnalysisResults): ReportSection {
+  const m = results.portfolio_level_metrics;
+  const op = m.operating_cost_breakdown;
+  const cap = m.capital_cost_breakdown;
+  const lines: string[] = ['Operating expenses (annual):'];
+
+  const opRows: [string, number][] = [
+    ['  Base rent', op.rent],
+    ['  CAM / operating', op.cams],
+    ['  Utilities', op.utilities],
+    ['  Parking', op.parking],
+    ['  Property tax', op.property_tax],
+    ['  Insurance', op.insurance],
+    ['  Janitorial', op.janitorial],
+    ['  Other recurring', op.other],
+  ];
+  for (const [label, val] of opRows) if (val > 0) lines.push(`${label}: ${money(val)}`);
+  lines.push(`  Total operating: ${money(m.total_portfolio_annual_cost)}`);
+
+  const hasCapital =
+    cap.tenant_improvement + cap.furniture_ffe + cap.construction_buildout +
+    cap.moving + cap.other + cap.tenant_improvement_allowance > 0;
+  if (hasCapital) {
+    lines.push('One-time / capital:');
+    if (cap.tenant_improvement > 0) lines.push(`  Tenant improvement: ${money(cap.tenant_improvement)}`);
+    if (cap.tenant_improvement_allowance > 0) lines.push(`  Less TI allowance: -${money(cap.tenant_improvement_allowance)}`);
+    if (cap.furniture_ffe > 0) lines.push(`  Furniture / FF&E: ${money(cap.furniture_ffe)}`);
+    if (cap.construction_buildout > 0) lines.push(`  Construction / build-out: ${money(cap.construction_buildout)}`);
+    if (cap.moving > 0) lines.push(`  Moving: ${money(cap.moving)}`);
+    if (cap.other > 0) lines.push(`  Other one-time: ${money(cap.other)}`);
+    lines.push(`  Net capital: ${money(cap.net_capital)}`);
+    lines.push(`  Amortized annual (over lease term): ${money(m.total_amortized_capital_annual)}`);
+  }
+  lines.push(`Fully-loaded annual cost: ${money(m.total_fully_loaded_annual_cost)}`);
+  lines.push(`Fully-loaded cost per SF: ${money(m.fully_loaded_cost_per_sf)}`);
+  return { heading: 'Occupancy Cost — All-In', lines };
+}
+
+function standardsSection(results: AnalysisResults): ReportSection {
+  return {
+    heading: 'Industry Standards (IFMA / BOMA / CoStar)',
+    lines: results.standards_benchmarks.map(
+      (s) => `[${s.status.toUpperCase()}] ${s.standard} — ${s.metric}: ${s.value}${s.unit} (${s.benchmark})`,
+    ),
   };
 }
 
@@ -115,15 +166,19 @@ export function buildReport(
   } else if (opts.reportType === 'detailed') {
     base.sections = [
       kpiSection(results),
+      costSection(results),
+      standardsSection(results),
       propertySection(results),
       checklistSection(results),
       issuesSection(results),
       opportunitiesSection(results, 50),
     ];
   } else {
-    // executive_summary (default)
+    // executive_summary (default): KPIs, the all-in cost picture, then priorities.
     base.sections = [
       kpiSection(results),
+      costSection(results),
+      standardsSection(results),
       opportunitiesSection(results, 5),
       checklistSection(results),
     ];

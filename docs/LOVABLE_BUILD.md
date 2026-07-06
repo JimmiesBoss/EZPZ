@@ -169,22 +169,29 @@ errors with "function not found," deploy Phase 2; if `portfolio_not_found`, the
 
 Render from `analysis`:
 
+The **dashboard leads with true operating cost** — the recurring cost of running
+the space. Fully-loaded (all-in, incl. amortized build-out) is reserved for the
+**PDF report** (Screen 6), which itemizes every combined expense first, then shows
+the fully-loaded total. So on the dashboard, headline operating; the fully-loaded
+fields are returned but shouldn't be the lead number.
+
 - **KPI cards** ← `portfolio_level_metrics`: `total_portfolio_sf`,
-  `total_portfolio_annual_cost` (operating), `total_fully_loaded_annual_cost`,
-  `cost_per_sf_total`, `fully_loaded_cost_per_sf`, `cost_per_employee`,
+  **`total_portfolio_annual_cost` (operating — the headline cost)**,
+  `cost_per_sf_total` (operating $/SF), `cost_per_employee`,
   `rentable_sf_per_employee`, `average_load_factor`,
   `portfolio_average_utilization_rate`, `benchmark_variance_percent`, and
   `data_completeness_percent` (top-level).
 - **Cost breakdown** ← `portfolio_level_metrics.operating_cost_breakdown`
   (rent / cams / utilities / parking / property_tax / insurance / janitorial /
-  other) — a stacked bar or donut of where the money goes.
+  other) — a stacked bar or donut of where the operating money goes.
 - **Standards panel (IFMA / BOMA / CoStar)** ← `standards_benchmarks[]`: each has
   `standard`, `metric`, `value`, `unit`, `benchmark`, `status`
   (pass/warning/fail), `note`. Render as labelled rows grouped by `standard`.
 - **Property table** ← `property_level_metrics[]`: `property_name`, `sf`,
-  `annual_cost`, `fully_loaded_annual_cost`, `cost_per_sf`,
-  `fully_loaded_cost_per_sf`, `cost_per_employee`, `load_factor`,
-  `utilization_rate`, `variance_from_benchmark`, `red_flag_status` (color-coded).
+  `annual_cost` (operating), `cost_per_sf` (operating), `cost_per_employee`,
+  `load_factor`, `utilization_rate`, `variance_from_benchmark`,
+  `red_flag_status` (color-coded). Keep `fully_loaded_annual_cost` /
+  `fully_loaded_cost_per_sf` for the report / a drill-down, not the main columns.
 - **Map** ← plot properties by city/state, color by `red_flag_status`.
 - **10-point checklist** ← `red_flag_checklist[]`: `category`, `status`
   (pass/warning/fail), `description`, expandable `sub_items[]`.
@@ -212,6 +219,13 @@ const { data } = await supabase.functions.invoke('export-pdf', {
 });
 window.open(data.pdf_url);   // signed URL, valid for REPORT_LINK_TTL_SECONDS
 ```
+
+The report is where the **fully-loaded** picture lives: an "Occupancy Cost —
+All-In" section itemizes every combined expense (operating categories, then
+one-time/capital net of the TI allowance, then the amortized annual figure) and
+ends with the fully-loaded annual cost and cost/SF — followed by the IFMA / BOMA /
+CoStar standards. This is generated server-side by `export-pdf`; no extra work in
+Lovable beyond the invoke above.
 
 ## Screen 7 — Team & domains (admin only)
 

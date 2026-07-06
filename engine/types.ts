@@ -89,6 +89,20 @@ export interface OperatingCostBreakdown {
   other: number;
 }
 
+/** One-time / capital cost categories, $ (with the TI allowance as a credit). */
+export interface CapitalCostBreakdown {
+  tenant_improvement: number;
+  tenant_improvement_allowance: number;
+  furniture_ffe: number;
+  construction_buildout: number;
+  moving: number;
+  other: number;
+  /** Gross spend − TI allowance. */
+  net_capital: number;
+  /** Net capital (floored at 0) amortized over the lease term, $/yr. */
+  amortized_annual: number;
+}
+
 export interface PortfolioLevelMetrics {
   total_portfolio_sf: number;
   total_portfolio_annual_cost: number;
@@ -105,6 +119,8 @@ export interface PortfolioLevelMetrics {
   rentable_sf_per_employee: number;
   average_load_factor: number;
   operating_cost_breakdown: OperatingCostBreakdown;
+  capital_cost_breakdown: CapitalCostBreakdown;
+  total_amortized_capital_annual: number;
 }
 
 export interface PropertyLevelMetrics {
@@ -130,6 +146,8 @@ export interface PropertyLevelMetrics {
   // True-cost + standards metrics
   /** Recurring operating $/yr by category. */
   operating_cost_breakdown: OperatingCostBreakdown;
+  /** One-time / capital $ by category (net of TI allowance). */
+  capital_cost_breakdown: CapitalCostBreakdown;
   /** Net one-time capital (spend − TI allowance) amortized over the lease term, $/yr. */
   amortized_capital_annual: number;
   /** Operating + amortized capital, $/yr. */

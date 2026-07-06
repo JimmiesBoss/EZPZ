@@ -10,6 +10,7 @@ import {
   latestOccupancy,
   propertyAmortizedCapitalAnnual,
   propertyAnnualCost,
+  propertyCapitalBreakdown,
   propertyOperatingBreakdown,
   type OccupancyInput,
   type PropertyInput,
@@ -17,6 +18,7 @@ import {
 import { round } from './normalize.ts';
 import type {
   SpaceType,
+  CapitalCostBreakdown,
   OperatingCostBreakdown,
   PortfolioLevelMetrics,
   PropertyLevelMetrics,
@@ -33,6 +35,19 @@ function roundBreakdown(b: OperatingCostBreakdown): OperatingCostBreakdown {
     insurance: round(b.insurance),
     janitorial: round(b.janitorial),
     other: round(b.other),
+  };
+}
+
+function roundCapital(b: CapitalCostBreakdown): CapitalCostBreakdown {
+  return {
+    tenant_improvement: round(b.tenant_improvement),
+    tenant_improvement_allowance: round(b.tenant_improvement_allowance),
+    furniture_ffe: round(b.furniture_ffe),
+    construction_buildout: round(b.construction_buildout),
+    moving: round(b.moving),
+    other: round(b.other),
+    net_capital: round(b.net_capital),
+    amortized_annual: round(b.amortized_annual),
   };
 }
 
@@ -167,6 +182,7 @@ export function computeProperty(property: PropertyInput): PropertyComputation {
       space_mix_alignment: round(privateOfficeShare),
     },
     operating_cost_breakdown: roundBreakdown(propertyOperatingBreakdown(property)),
+    capital_cost_breakdown: roundCapital(propertyCapitalBreakdown(property)),
     amortized_capital_annual: round(amortizedCapital),
     fully_loaded_annual_cost: round(fullyLoaded),
     fully_loaded_cost_per_sf: round(sf > 0 ? fullyLoaded / sf : 0),
@@ -253,6 +269,10 @@ export function computePortfolioMetrics(
     rent: 0, cams: 0, utilities: 0, parking: 0,
     property_tax: 0, insurance: 0, janitorial: 0, other: 0,
   };
+  const capital: CapitalCostBreakdown = {
+    tenant_improvement: 0, tenant_improvement_allowance: 0, furniture_ffe: 0,
+    construction_buildout: 0, moving: 0, other: 0, net_capital: 0, amortized_annual: 0,
+  };
   for (const c of computations) {
     const b = c.metrics.operating_cost_breakdown;
     breakdown.rent += b.rent;
@@ -263,6 +283,15 @@ export function computePortfolioMetrics(
     breakdown.insurance += b.insurance;
     breakdown.janitorial += b.janitorial;
     breakdown.other += b.other;
+    const k = c.metrics.capital_cost_breakdown;
+    capital.tenant_improvement += k.tenant_improvement;
+    capital.tenant_improvement_allowance += k.tenant_improvement_allowance;
+    capital.furniture_ffe += k.furniture_ffe;
+    capital.construction_buildout += k.construction_buildout;
+    capital.moving += k.moving;
+    capital.other += k.other;
+    capital.net_capital += k.net_capital;
+    capital.amortized_annual += k.amortized_annual;
   }
 
   return {
@@ -289,6 +318,17 @@ export function computePortfolioMetrics(
       janitorial: round(breakdown.janitorial),
       other: round(breakdown.other),
     },
+    capital_cost_breakdown: {
+      tenant_improvement: round(capital.tenant_improvement),
+      tenant_improvement_allowance: round(capital.tenant_improvement_allowance),
+      furniture_ffe: round(capital.furniture_ffe),
+      construction_buildout: round(capital.construction_buildout),
+      moving: round(capital.moving),
+      other: round(capital.other),
+      net_capital: round(capital.net_capital),
+      amortized_annual: round(capital.amortized_annual),
+    },
+    total_amortized_capital_annual: round(capital.amortized_annual),
   };
 }
 

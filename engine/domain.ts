@@ -133,6 +133,40 @@ export function propertyAmortizedCapitalAnnual(property: PropertyInput): number 
   );
 }
 
+/** One-time / capital cost broken out by category across a property's leases, $. */
+export function propertyCapitalBreakdown(property: PropertyInput): {
+  tenant_improvement: number;
+  tenant_improvement_allowance: number;
+  furniture_ffe: number;
+  construction_buildout: number;
+  moving: number;
+  other: number;
+  net_capital: number;
+  amortized_annual: number;
+} {
+  const b = {
+    tenant_improvement: 0,
+    tenant_improvement_allowance: 0,
+    furniture_ffe: 0,
+    construction_buildout: 0,
+    moving: 0,
+    other: 0,
+    net_capital: 0,
+    amortized_annual: 0,
+  };
+  for (const l of property.leases) {
+    b.tenant_improvement += n(l.tenantImprovementCost);
+    b.tenant_improvement_allowance += n(l.tenantImprovementAllowance);
+    b.furniture_ffe += n(l.furnitureFfeCost);
+    b.construction_buildout += n(l.constructionBuildoutCost);
+    b.moving += n(l.movingCost);
+    b.other += n(l.otherOneTimeCosts);
+    b.net_capital += leaseCapitalNet(l);
+    b.amortized_annual += leaseAmortizedCapitalAnnual(l);
+  }
+  return b;
+}
+
 /** Operating cost broken out by category across a property's leases, annual $. */
 export function propertyOperatingBreakdown(property: PropertyInput): {
   rent: number;
