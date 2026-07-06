@@ -57,7 +57,7 @@ readiness panel. Every field earns its place by feeding an output.
 | Step | Data captured | Unlocks in the analysis |
 |---|---|---|
 | 3a Basics | rentable SF, on-site headcount, market tier | Portfolio totals, SF-per-employee, benchmark target |
-| 3b Lease & cost | rent, CAM, other costs, lease term, break clause | Cost/SF, benchmark variance, cost-efficiency flags (#2, #10), lease lock-in (#7), renegotiation & consolidation opportunities |
+| 3b Lease & cost | rent, CAM, utilities, parking, tax, insurance, janitorial; TI (+allowance), furniture, build-out, moving; term; break clause | Operating **and** fully-loaded cost/SF, cost-per-employee/seat, operating-expense breakdown, benchmark variance, cost-efficiency flags (#2, #10), lease lock-in (#7), CoStar cost comparison, renegotiation & consolidation opportunities |
 | 3c Occupancy | desks occupied/available, data source, date | Utilization & occupancy rates, low-use flags (#1, #3, #9), sublease opportunity |
 | 3d Space mix | SF + seats per space type, room utilization | Space-mix flags (#4 conference, #5 support, #8 private-office), reconfiguration opportunity, "wrong space mix" diagnosis |
 
@@ -108,21 +108,50 @@ cost-per-employee baseline.*
 | More detail ▸ (collapsed) | — | no | Usable SF · Floors · Year built |
 
 ### Step 3b — Lease & cost
-Intro (leased): *"What does this space cost each year?"* Intro (owned): *"Enter
-annual carrying costs."* Unlocks: *cost efficiency, benchmark comparison, and
-renegotiation / consolidation opportunities.*
+Intro (leased): *"What does this space really cost?"* Intro (owned): *"Enter the
+lease term and annual carrying costs."* Unlocks: *true cost per SF (operating &
+fully-loaded), benchmark comparison, cost-efficiency flags, and renegotiation /
+consolidation opportunities.* Present as three groups so it never feels like one
+giant form — **Lease term**, **Recurring annual costs**, **One-time / build-out
+costs** (the last two collapsible, "add what you have").
+
+**Lease term**
 
 | Field | Type | Required | Options / helper |
 |---|---|---|---|
 | Lease structure | segmented | yes | **Gross** · **Triple net** · **Modified gross** (`gross` / `triple_net` / `modified_gross`) |
-| Lease start / end | date ×2 | yes | end must be after start |
-| Annual rent | number ($) | yes | base rent per year |
-| CAM charges (annual) | number ($) | no | common-area maintenance |
-| Other annual costs | number ($) | no | anything else recurring |
+| Lease start / end | date ×2 | yes | end after start; the **term** (years) is derived and shown — it drives capital amortization and lock-in flags |
 | Has an early-exit (break) clause | toggle | no | when on, reveal ↓ |
 | Break date | date | if toggle on | must fall within the lease term |
 | Break penalty type | segmented | if toggle on | **% of remaining rent** · **Fixed amount** · **None** (`percentage_of_remaining` / `fixed_amount` / `none`) |
 | Break penalty amount | number | conditional | 0–100 if %; ≥ 0 if fixed |
+
+**Recurring annual costs ($/yr)** — the operating cost of the space
+
+| Field | Type | Required | Helper |
+|---|---|---|---|
+| Base rent | number ($) | yes | annual base rent |
+| CAM / operating expenses | number ($) | no | common-area maintenance |
+| Utilities | number ($) | no | electricity, gas, water |
+| Parking | number ($) | no | parking cost |
+| Property tax | number ($) | no | esp. owned or NNN pass-through |
+| Insurance | number ($) | no | |
+| Janitorial | number ($) | no | cleaning / day-porter |
+| Other recurring | number ($) | no | anything else annual |
+
+**One-time / build-out costs ($)** — amortized over the lease term
+
+| Field | Type | Required | Helper |
+|---|---|---|---|
+| Tenant improvement (TI) cost | number ($) | no | total build-out spend |
+| **TI allowance** | number ($) | no | landlord's contribution — **subtracted** from TI/capital |
+| Furniture / FF&E | number ($) | no | |
+| Construction / build-out | number ($) | no | if separate from TI |
+| Moving costs | number ($) | no | |
+| Other one-time | number ($) | no | |
+
+Show a live *"Fully-loaded ≈ operating + (net capital ÷ term)"* readout so users
+see the true annual cost as they enter capital items and the TI allowance.
 
 ### Step 3c — Occupancy
 Intro: *"How full is this space, really?"* Unlocks: *utilization & occupancy
@@ -222,10 +251,14 @@ constraints, so client and server agree and error messages are predictable.
 (integer); `occupancy_rate_percent` 0–100 if given; ownership & market tier must
 be from their option lists.
 
-**Lease:** `lease_start_date` < `lease_end_date`; `annual_rent` ≥ 0;
-`cams_annual` / `other_annual_costs` ≥ 0 if given; if break clause on →
-`break_date` **and** penalty type required, `break_date` within the lease term;
-penalty amount 0–100 for "% of remaining", ≥ 0 for "fixed".
+**Lease:** `lease_start_date` < `lease_end_date`; `annual_rent` ≥ 0; every other
+cost field (`cams_annual`, `utilities_annual`, `parking_annual`,
+`property_tax_annual`, `insurance_annual`, `janitorial_annual`,
+`other_annual_costs`, `tenant_improvement_cost`, `tenant_improvement_allowance`,
+`furniture_ffe_cost`, `construction_buildout_cost`, `moving_cost`,
+`other_one_time_costs`) ≥ 0 if given; if break clause on → `break_date` **and**
+penalty type required, `break_date` within the lease term; penalty amount 0–100
+for "% of remaining", ≥ 0 for "fixed".
 
 **Occupancy:** `measurement_date` ≤ today; `occupied_desks` ≥ 0;
 `total_desks_available` > 0; `occupied_desks` ≤ `total_desks_available`; rates
@@ -266,7 +299,13 @@ const { data: property } = await supabase.from('properties').insert({
 await supabase.from('leases').insert({
   org_id: ws.org_id, property_id: property.id,
   lease_type, lease_start_date, lease_end_date,
-  annual_rent, cams_annual, other_annual_costs,
+  // recurring operating ($/yr)
+  annual_rent, cams_annual, utilities_annual, parking_annual,
+  property_tax_annual, insurance_annual, janitorial_annual, other_annual_costs,
+  // one-time / capital ($) — TI allowance is a credit
+  tenant_improvement_cost, tenant_improvement_allowance, furniture_ffe_cost,
+  construction_buildout_cost, moving_cost, other_one_time_costs,
+  // break clause
   has_break_clause, break_date, break_penalty_type, break_penalty_amount,
 });
 

@@ -11,6 +11,7 @@ import {
 } from './metrics.ts';
 import { identifyOpportunities } from './opportunities.ts';
 import { buildRedFlagChecklist } from './redflags.ts';
+import { buildStandardsBenchmarks } from './standards.ts';
 import type { AnalysisResults } from './types.ts';
 
 export interface AnalyzeOptions {
@@ -44,6 +45,9 @@ export function analyzePortfolio(
   // Step 6: utilization-issue classification.
   const issues = classifyUtilizationIssues(computations, asOf);
 
+  // IFMA / BOMA / CoStar standards comparisons.
+  const standards = buildStandardsBenchmarks(portfolioMetrics);
+
   // Step 7: serialize.
   return {
     portfolio_level_metrics: portfolioMetrics,
@@ -51,6 +55,7 @@ export function analyzePortfolio(
     utilization_issues: issues,
     financial_opportunities: opportunities,
     red_flag_checklist: redFlagChecklist,
+    standards_benchmarks: standards,
     data_completeness_percent: completeness,
   };
 }

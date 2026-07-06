@@ -144,23 +144,47 @@ const { data } = await supabase.functions.invoke('import-csv', {
 
 ## Screen 5 — Analysis dashboard (brief §5.3)
 
-Run analysis, then render the returned object. Analysis also persists a snapshot.
+### Wire the "Analyze" button (this replaces any "coming in the next slice" placeholder)
+
+The Analyze button must call the **deployed** `analyze` Edge Function and route to
+this dashboard — it is fully implemented server-side. If you currently show an
+alert, swap it for this:
 
 ```ts
-const { data: analysis } = await supabase.functions.invoke('analyze', {
-  body: { portfolio_id: ws.portfolio_id },   // optional: snapshot_date, data_as_of_date, notes
-});
+async function runAnalysis() {
+  setLoading(true);
+  const { data: analysis, error } = await supabase.functions.invoke('analyze', {
+    body: { portfolio_id: ws.portfolio_id },   // optional: snapshot_date, data_as_of_date, notes
+  });
+  setLoading(false);
+  if (error) { showError(error.message); return; }
+  renderDashboard(analysis);   // analysis holds everything below; a snapshot is also saved
+}
 ```
+
+Prerequisite: the `analyze` function must be **deployed** (Phase 2 of the rollout)
+and the user signed in (the Supabase client sends the JWT automatically). If it
+errors with "function not found," deploy Phase 2; if `portfolio_not_found`, the
+`portfolio_id` is wrong for the user's org.
 
 Render from `analysis`:
 
 - **KPI cards** ← `portfolio_level_metrics`: `total_portfolio_sf`,
-  `total_portfolio_annual_cost`, `cost_per_sf_total`, `cost_per_sf_per_employee`,
+  `total_portfolio_annual_cost` (operating), `total_fully_loaded_annual_cost`,
+  `cost_per_sf_total`, `fully_loaded_cost_per_sf`, `cost_per_employee`,
+  `rentable_sf_per_employee`, `average_load_factor`,
   `portfolio_average_utilization_rate`, `benchmark_variance_percent`, and
   `data_completeness_percent` (top-level).
+- **Cost breakdown** ← `portfolio_level_metrics.operating_cost_breakdown`
+  (rent / cams / utilities / parking / property_tax / insurance / janitorial /
+  other) — a stacked bar or donut of where the money goes.
+- **Standards panel (IFMA / BOMA / CoStar)** ← `standards_benchmarks[]`: each has
+  `standard`, `metric`, `value`, `unit`, `benchmark`, `status`
+  (pass/warning/fail), `note`. Render as labelled rows grouped by `standard`.
 - **Property table** ← `property_level_metrics[]`: `property_name`, `sf`,
-  `annual_cost`, `cost_per_sf`, `cost_per_sf_per_employee`, `utilization_rate`,
-  `variance_from_benchmark`, `red_flag_status` (color-code the four states).
+  `annual_cost`, `fully_loaded_annual_cost`, `cost_per_sf`,
+  `fully_loaded_cost_per_sf`, `cost_per_employee`, `load_factor`,
+  `utilization_rate`, `variance_from_benchmark`, `red_flag_status` (color-coded).
 - **Map** ← plot properties by city/state, color by `red_flag_status`.
 - **10-point checklist** ← `red_flag_checklist[]`: `category`, `status`
   (pass/warning/fail), `description`, expandable `sub_items[]`.

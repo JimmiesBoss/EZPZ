@@ -17,6 +17,7 @@ export {
 export { buildRedFlagChecklist } from './redflags.ts';
 export { identifyOpportunities } from './opportunities.ts';
 export { classifyUtilizationIssues } from './issues.ts';
+export { buildStandardsBenchmarks } from './standards.ts';
 export {
   validateCsv,
   parseCsv,

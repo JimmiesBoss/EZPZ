@@ -44,6 +44,53 @@ describe('computeProperty (brief §4.1)', () => {
   });
 });
 
+describe('true-cost model (operating vs fully-loaded)', () => {
+  it('amortizes net capital (spend − TI allowance) over the lease term', () => {
+    // 10-yr term; capital spend = TI 1,000,000 + furniture 200,000 = 1,200,000;
+    // TI allowance 400,000 → net 800,000 / 10 yrs = 80,000/yr.
+    const p = property({
+      totalRentableSf: 10000,
+      headcountOnSite: 50,
+      leases: [
+        lease({
+          leaseStartDate: new Date('2021-01-01'),
+          leaseEndDate: new Date('2031-01-01'),
+          annualRent: 200000,
+          camsAnnual: 50000,
+          tenantImprovementCost: 1000000,
+          furnitureFfeCost: 200000,
+          tenantImprovementAllowance: 400000,
+        }),
+      ],
+    });
+    const c = computeProperty(p);
+    expect(c.metrics.annual_cost).toBe(250000); // operating unchanged
+    // net 800,000 over a ~10-yr term (365.25-day years) ≈ $80,000/yr
+    expect(c.metrics.amortized_capital_annual).toBeGreaterThan(79500);
+    expect(c.metrics.amortized_capital_annual).toBeLessThan(80500);
+    expect(c.metrics.fully_loaded_annual_cost).toBeGreaterThan(329500);
+    expect(c.metrics.fully_loaded_annual_cost).toBeLessThan(330500);
+    expect(c.metrics.fully_loaded_cost_per_sf).toBeCloseTo(33, 0);
+  });
+
+  it('breaks operating cost out by category', () => {
+    const c = computeProperty(
+      property({
+        leases: [lease({ annualRent: 100000, camsAnnual: 20000, utilitiesAnnual: 15000, parkingAnnual: 5000 })],
+      }),
+    );
+    const b = c.metrics.operating_cost_breakdown;
+    expect(b.rent).toBe(100000);
+    expect(b.utilities).toBe(15000);
+    expect(b.parking).toBe(5000);
+  });
+
+  it('computes load factor from rentable ÷ usable SF', () => {
+    const c = computeProperty(property({ totalRentableSf: 11500, totalUsableSf: 10000 }));
+    expect(c.metrics.load_factor).toBeCloseTo(1.15, 3);
+  });
+});
+
 describe('red_flag_status classification', () => {
   it('flags low utilization as underutilized', () => {
     const c = computeProperty(

@@ -32,9 +32,20 @@ its parent key (`portfolio_id` / `property_id`).
 - **properties** — office building. `portfolio_id`, address fields,
   `property_type` (`owned|leased`), `total_rentable_sf`, `headcount_on_site`,
   optional `total_usable_sf`, `market_tier` (`tier1|tier2|tier3`).
-- **leases** — `property_id`, term dates, `lease_type`
-  (`gross|triple_net|modified_gross`), `annual_rent`, `cams_annual`,
-  `other_annual_costs`, break-clause fields.
+- **leases** — the property's cost container (leased buildings and the carrying
+  costs of owned ones). `property_id`, **term dates** (`lease_start_date`,
+  `lease_end_date`), `lease_type` (`gross|triple_net|modified_gross`), and the
+  full occupancy-cost model:
+  - *recurring operating ($/yr):* `annual_rent`, `cams_annual`,
+    `utilities_annual`, `parking_annual`, `property_tax_annual`,
+    `insurance_annual`, `janitorial_annual`, `other_annual_costs`
+  - *one-time / capital ($):* `tenant_improvement_cost`,
+    `tenant_improvement_allowance` (landlord credit), `furniture_ffe_cost`,
+    `construction_buildout_cost`, `moving_cost`, `other_one_time_costs`
+  - *break clause:* `has_break_clause`, `break_date`, `break_penalty_type`,
+    `break_penalty_amount`
+  A property may have more than one lease row (e.g. suite expansions); the engine
+  sums them. Lease **term** = end − start, used for amortization and lock-in flags.
 - **occupancy_records** — `property_id`, `data_source`, `measurement_date`,
   `occupied_desks`, `total_desks_available`, optional rates.
 - **space_breakdowns** — `property_id`, `space_type`, `allocated_sf`,

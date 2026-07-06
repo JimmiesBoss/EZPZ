@@ -77,6 +77,18 @@ export type OpportunityType = (typeof OPPORTUNITY_TYPES)[number];
 // Analysis result shapes (brief §3.2)
 // ---------------------------------------------------------------------------
 
+/** Recurring operating-cost categories, annual $ (brief §4.1 + expense model). */
+export interface OperatingCostBreakdown {
+  rent: number;
+  cams: number;
+  utilities: number;
+  parking: number;
+  property_tax: number;
+  insurance: number;
+  janitorial: number;
+  other: number;
+}
+
 export interface PortfolioLevelMetrics {
   total_portfolio_sf: number;
   total_portfolio_annual_cost: number;
@@ -86,6 +98,13 @@ export interface PortfolioLevelMetrics {
   portfolio_average_occupancy_rate: number;
   portfolio_average_utilization_rate: number;
   benchmark_variance_percent: number;
+  // True-cost + standards metrics (IFMA / BOMA / CoStar)
+  total_fully_loaded_annual_cost: number;
+  fully_loaded_cost_per_sf: number;
+  cost_per_employee: number;
+  rentable_sf_per_employee: number;
+  average_load_factor: number;
+  operating_cost_breakdown: OperatingCostBreakdown;
 }
 
 export interface PropertyLevelMetrics {
@@ -108,6 +127,33 @@ export interface PropertyLevelMetrics {
     cost_efficiency: number;
     space_mix_alignment: number;
   };
+  // True-cost + standards metrics
+  /** Recurring operating $/yr by category. */
+  operating_cost_breakdown: OperatingCostBreakdown;
+  /** Net one-time capital (spend − TI allowance) amortized over the lease term, $/yr. */
+  amortized_capital_annual: number;
+  /** Operating + amortized capital, $/yr. */
+  fully_loaded_annual_cost: number;
+  fully_loaded_cost_per_sf: number;
+  /** Operating cost per on-site employee, $/yr (IFMA). */
+  cost_per_employee: number;
+  /** Operating cost per available desk/seat, $/yr; 0 when no desk data (IFMA). */
+  cost_per_seat: number;
+  /** Rentable ÷ usable SF; 0 when usable SF unknown (BOMA add-on/load factor). */
+  load_factor: number;
+  /** Rentable SF per on-site employee (IFMA density). */
+  rentable_sf_per_employee: number;
+}
+
+/** One standards comparison line for the results panel (IFMA / BOMA / CoStar). */
+export interface StandardBenchmark {
+  standard: 'IFMA' | 'BOMA' | 'CoStar';
+  metric: string;
+  value: number;
+  unit: string;
+  benchmark: string;
+  status: CheckStatus;
+  note: string;
 }
 
 export interface UtilizationIssue {
@@ -146,5 +192,7 @@ export interface AnalysisResults {
   utilization_issues: UtilizationIssue[];
   financial_opportunities: FinancialOpportunity[];
   red_flag_checklist: RedFlagChecklistItem[];
+  /** IFMA / BOMA / CoStar standards comparisons at the portfolio level. */
+  standards_benchmarks: StandardBenchmark[];
   data_completeness_percent: number;
 }

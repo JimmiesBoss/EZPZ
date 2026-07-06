@@ -58,6 +58,45 @@ benchmark comparison to `cost_per_sf`. So:
 efficiency metric (useful for comparing space-cost intensity across sites of
 different headcounts), it just isn't the value benchmarked.
 
+## True cost of a space (operating vs. fully-loaded)
+
+Each property's cost comes from its lease row(s), now split into two layers
+(`engine/domain.ts`):
+
+- **Operating (recurring, $/yr)** = rent + CAM + utilities + parking + property
+  tax + insurance + janitorial + other. This is `annual_cost` and drives
+  `cost_per_sf`, benchmark variance, and the cost red-flags — unchanged scale from
+  before, so existing behavior holds when only rent/CAM are entered.
+- **Capital (one-time, $)** = TI + furniture/FF&E + construction/build-out +
+  moving + other one-time, **minus the tenant-improvement allowance** (the
+  landlord's contribution). Net capital is amortized straight-line over the lease
+  term (min 1 yr, floored at 0) into `amortized_capital_annual`.
+- **Fully loaded ($/yr)** = operating + amortized capital →
+  `fully_loaded_annual_cost` and `fully_loaded_cost_per_sf`.
+
+Each property also reports `operating_cost_breakdown` (the eight categories),
+`cost_per_employee`, `cost_per_seat`, and `rentable_sf_per_employee`; the
+portfolio aggregates all of these.
+
+## Industry standards — IFMA / BOMA / CoStar (`engine/standards.ts`)
+
+Surfaced as `standards_benchmarks` in the results (separate from the 10-point
+checklist so the brief's structure is untouched):
+
+- **IFMA — Density:** rentable SF ÷ employees vs. ~150 SF/employee; warns above
+  225, fails above 300, warns below 90.
+- **IFMA — Utilization:** portfolio average desk utilization vs. a 70% healthy
+  floor.
+- **BOMA — Load factor:** rentable ÷ usable SF (add-on / core factor); typical
+  ≤ 1.15, warns above, fails above 1.20. Needs usable SF entered.
+- **BOMA — Operating expense intensity:** ex-rent opex per SF vs. a
+  $8–16/SF office reference.
+- **CoStar — Fully-loaded cost/SF:** vs. the market-tier target, flagged by
+  variance the same way as the cost red-flags.
+
+Each item returns a value, the benchmark, a pass/warning/fail status, and a
+plain-language note for the UI.
+
 ## Red-flag checklist (brief §4.3)
 
 Ten items in `engine/redflags.ts`, each evaluated per property then aggregated to

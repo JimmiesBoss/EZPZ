@@ -16,6 +16,19 @@ export interface LeaseInput {
   annualRent: number;
   camsAnnual?: number | null;
   otherAnnualCosts?: number | null;
+  // Recurring operating costs (annual $)
+  utilitiesAnnual?: number | null;
+  parkingAnnual?: number | null;
+  propertyTaxAnnual?: number | null;
+  insuranceAnnual?: number | null;
+  janitorialAnnual?: number | null;
+  // One-time / capital costs ($)
+  tenantImprovementCost?: number | null;
+  tenantImprovementAllowance?: number | null;
+  furnitureFfeCost?: number | null;
+  constructionBuildoutCost?: number | null;
+  movingCost?: number | null;
+  otherOneTimeCosts?: number | null;
   hasBreakClause?: boolean;
   breakDate?: Date | null;
   breakPenaltyType?: string | null;
@@ -62,13 +75,96 @@ export interface PortfolioInput {
   properties: PropertyInput[];
 }
 
-/** Total annual occupancy cost for a property = sum over leases of rent + CAM + other (brief §4.1). */
+const n = (x?: number | null): number => x ?? 0;
+
+/** Recurring operating cost of a single lease, annual $ (rent + CAM + utilities + …). */
+export function leaseOperatingAnnual(l: LeaseInput): number {
+  return (
+    n(l.annualRent) +
+    n(l.camsAnnual) +
+    n(l.utilitiesAnnual) +
+    n(l.parkingAnnual) +
+    n(l.propertyTaxAnnual) +
+    n(l.insuranceAnnual) +
+    n(l.janitorialAnnual) +
+    n(l.otherAnnualCosts)
+  );
+}
+
+/** Net one-time capital of a lease = capital spend − landlord TI allowance ($). */
+export function leaseCapitalNet(l: LeaseInput): number {
+  const spend =
+    n(l.tenantImprovementCost) +
+    n(l.furnitureFfeCost) +
+    n(l.constructionBuildoutCost) +
+    n(l.movingCost) +
+    n(l.otherOneTimeCosts);
+  return spend - n(l.tenantImprovementAllowance);
+}
+
+/** Whole-ish years of the lease term (minimum 1, to avoid divide-by-zero). */
+export function leaseTermYears(l: LeaseInput): number {
+  const years =
+    (l.leaseEndDate.getTime() - l.leaseStartDate.getTime()) /
+    (365.25 * 24 * 60 * 60 * 1000);
+  return Math.max(1, years);
+}
+
+/** Net capital amortized straight-line over the lease term, annual $ (floored at 0). */
+export function leaseAmortizedCapitalAnnual(l: LeaseInput): number {
+  return Math.max(0, leaseCapitalNet(l)) / leaseTermYears(l);
+}
+
+/**
+ * Total annual *operating* occupancy cost for a property (brief §4.1, extended).
+ * Named propertyAnnualCost for continuity — this is the recurring operating cost
+ * that drives cost/SF and benchmark variance. Fully-loaded cost (incl. amortized
+ * capital) is computed separately in the metrics layer.
+ */
 export function propertyAnnualCost(property: PropertyInput): number {
+  return property.leases.reduce((sum, l) => sum + leaseOperatingAnnual(l), 0);
+}
+
+/** Amortized one-time capital across a property's leases, annual $. */
+export function propertyAmortizedCapitalAnnual(property: PropertyInput): number {
   return property.leases.reduce(
-    (sum, l) =>
-      sum + l.annualRent + (l.camsAnnual ?? 0) + (l.otherAnnualCosts ?? 0),
+    (sum, l) => sum + leaseAmortizedCapitalAnnual(l),
     0,
   );
+}
+
+/** Operating cost broken out by category across a property's leases, annual $. */
+export function propertyOperatingBreakdown(property: PropertyInput): {
+  rent: number;
+  cams: number;
+  utilities: number;
+  parking: number;
+  property_tax: number;
+  insurance: number;
+  janitorial: number;
+  other: number;
+} {
+  const b = {
+    rent: 0,
+    cams: 0,
+    utilities: 0,
+    parking: 0,
+    property_tax: 0,
+    insurance: 0,
+    janitorial: 0,
+    other: 0,
+  };
+  for (const l of property.leases) {
+    b.rent += n(l.annualRent);
+    b.cams += n(l.camsAnnual);
+    b.utilities += n(l.utilitiesAnnual);
+    b.parking += n(l.parkingAnnual);
+    b.property_tax += n(l.propertyTaxAnnual);
+    b.insurance += n(l.insuranceAnnual);
+    b.janitorial += n(l.janitorialAnnual);
+    b.other += n(l.otherAnnualCosts);
+  }
+  return b;
 }
 
 /** Most recent occupancy record for a property, or undefined. */

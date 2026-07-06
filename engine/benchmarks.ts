@@ -29,6 +29,28 @@ export const COST_PER_SF_PER_EMPLOYEE: Record<
 /** MVP default when a property's market tier is unspecified (brief §4.2). */
 export const DEFAULT_COST_PER_SF_PER_EMPLOYEE_TARGET = 20;
 
+/**
+ * BOMA load factor (rentable ÷ usable SF, a.k.a. add-on / core factor).
+ * Typical office is ~1.10–1.18; above ~1.20 the tenant pays for a lot of
+ * common area relative to usable space.
+ */
+export const BOMA_LOAD_FACTOR = { typical: 1.15, warnAbove: 1.15, flagAbove: 1.2 } as const;
+
+/** IFMA density — rentable SF per employee. Mirrors SF_PER_EMPLOYEE.default. */
+export const IFMA_DENSITY = {
+  target: 150,
+  // Outside this band the space is unusually generous (high) or dense (low).
+  warnAbove: 225,
+  failAbove: 300,
+  warnBelow: 90,
+} as const;
+
+/** BOMA-style fully-loaded office operating expense reference, $/SF/yr (context only). */
+export const BOMA_OPEX_REFERENCE = { minPerSf: 8, maxPerSf: 16 } as const;
+
+/** Utilization health (IFMA), reused from the meeting/desk thresholds. */
+export const IFMA_UTILIZATION = { healthyMin: 70, warnBelow: 70, failBelow: 50 } as const;
+
 export function costBenchmarkTarget(tier?: string | null): number {
   if (tier && tier in COST_PER_SF_PER_EMPLOYEE) {
     return COST_PER_SF_PER_EMPLOYEE[tier as MarketTier].target;

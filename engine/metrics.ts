@@ -8,17 +8,33 @@
 import { costBenchmarkTarget } from './benchmarks.ts';
 import {
   latestOccupancy,
+  propertyAmortizedCapitalAnnual,
   propertyAnnualCost,
+  propertyOperatingBreakdown,
   type OccupancyInput,
   type PropertyInput,
 } from './domain.ts';
 import { round } from './normalize.ts';
 import type {
   SpaceType,
+  OperatingCostBreakdown,
   PortfolioLevelMetrics,
   PropertyLevelMetrics,
   RedFlagStatus,
 } from './types.ts';
+
+function roundBreakdown(b: OperatingCostBreakdown): OperatingCostBreakdown {
+  return {
+    rent: round(b.rent),
+    cams: round(b.cams),
+    utilities: round(b.utilities),
+    parking: round(b.parking),
+    property_tax: round(b.property_tax),
+    insurance: round(b.insurance),
+    janitorial: round(b.janitorial),
+    other: round(b.other),
+  };
+}
 
 export interface PropertyComputation {
   input: PropertyInput;
@@ -125,6 +141,13 @@ export function computeProperty(property: PropertyInput): PropertyComputation {
   const privateOfficeShare =
     totalAllocatedSf > 0 ? (byType.private_office / totalAllocatedSf) * 100 : 0;
 
+  // True-cost: operating (= annualCost) + amortized net capital = fully loaded.
+  const amortizedCapital = propertyAmortizedCapitalAnnual(property);
+  const fullyLoaded = annualCost + amortizedCapital;
+  const usableSf = property.totalUsableSf ?? 0;
+  const occ0 = latestOccupancy(property);
+  const totalDesks = occ0?.totalDesksAvailable ?? 0;
+
   const metrics: PropertyLevelMetrics = {
     property_id: property.id,
     property_name: property.name,
@@ -143,6 +166,14 @@ export function computeProperty(property: PropertyInput): PropertyComputation {
       cost_efficiency: round(varianceFromBenchmark),
       space_mix_alignment: round(privateOfficeShare),
     },
+    operating_cost_breakdown: roundBreakdown(propertyOperatingBreakdown(property)),
+    amortized_capital_annual: round(amortizedCapital),
+    fully_loaded_annual_cost: round(fullyLoaded),
+    fully_loaded_cost_per_sf: round(sf > 0 ? fullyLoaded / sf : 0),
+    cost_per_employee: round(headcount > 0 ? annualCost / headcount : 0),
+    cost_per_seat: round(totalDesks > 0 ? annualCost / totalDesks : 0),
+    load_factor: round(usableSf > 0 ? sf / usableSf : 0, 3),
+    rentable_sf_per_employee: round(headcount > 0 ? sf / headcount : 0),
   };
 
   return {
@@ -205,6 +236,35 @@ export function computePortfolioMetrics(
       ? ((costPerSfTotal - weightedTarget) / weightedTarget) * 100
       : 0;
 
+  // True-cost + standards aggregates.
+  const totalFullyLoaded = computations.reduce(
+    (s, c) => s + c.metrics.fully_loaded_annual_cost,
+    0,
+  );
+  const loadFactors = computations
+    .map((c) => c.metrics.load_factor)
+    .filter((v) => v > 0);
+  const avgLoadFactor =
+    loadFactors.length > 0
+      ? loadFactors.reduce((s, v) => s + v, 0) / loadFactors.length
+      : 0;
+
+  const breakdown: OperatingCostBreakdown = {
+    rent: 0, cams: 0, utilities: 0, parking: 0,
+    property_tax: 0, insurance: 0, janitorial: 0, other: 0,
+  };
+  for (const c of computations) {
+    const b = c.metrics.operating_cost_breakdown;
+    breakdown.rent += b.rent;
+    breakdown.cams += b.cams;
+    breakdown.utilities += b.utilities;
+    breakdown.parking += b.parking;
+    breakdown.property_tax += b.property_tax;
+    breakdown.insurance += b.insurance;
+    breakdown.janitorial += b.janitorial;
+    breakdown.other += b.other;
+  }
+
   return {
     total_portfolio_sf: round(totalSf),
     total_portfolio_annual_cost: round(totalCost),
@@ -214,6 +274,21 @@ export function computePortfolioMetrics(
     portfolio_average_occupancy_rate: round(avgOccupancy),
     portfolio_average_utilization_rate: round(avgUtilization),
     benchmark_variance_percent: round(benchmarkVariance),
+    total_fully_loaded_annual_cost: round(totalFullyLoaded),
+    fully_loaded_cost_per_sf: round(totalSf > 0 ? totalFullyLoaded / totalSf : 0),
+    cost_per_employee: round(totalHeadcount > 0 ? totalCost / totalHeadcount : 0),
+    rentable_sf_per_employee: round(totalHeadcount > 0 ? totalSf / totalHeadcount : 0),
+    average_load_factor: round(avgLoadFactor, 3),
+    operating_cost_breakdown: {
+      rent: round(breakdown.rent),
+      cams: round(breakdown.cams),
+      utilities: round(breakdown.utilities),
+      parking: round(breakdown.parking),
+      property_tax: round(breakdown.property_tax),
+      insurance: round(breakdown.insurance),
+      janitorial: round(breakdown.janitorial),
+      other: round(breakdown.other),
+    },
   };
 }
 
